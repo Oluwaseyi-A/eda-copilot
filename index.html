@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EDA Copilot</title>
+  <script src="config.js"></script>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f8fb;
+      --panel: #ffffff;
+      --panel-strong: #eef3f8;
+      --ink: #1c2430;
+      --muted: #617083;
+      --line: #d8e0ea;
+      --blue: #2563eb;
+      --teal: #0f766e;
+      --amber: #b45309;
+      --red: #b42318;
+      --green: #15803d;
+      --shadow: 0 18px 50px rgba(22, 34, 51, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    button, textarea, input {
+      font: inherit;
+    }
+
+    button {
+      border: 0;
+      cursor: pointer;
+    }
+
+    .app {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 260px minmax(0, 1fr) 340px;
+    }
+
+    .sidebar, .status {
+      background: var(--panel);
+      border-color: var(--line);
+      padding: 22px;
+    }
+
+    .sidebar {
+      border-right: 1px solid var(--line);
+    }
+
+    .status {
+      border-left: 1px solid var(--line);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 28px;
+    }
+
+    .mark {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      background: linear-gradient(135deg, var(--blue), var(--teal));
+      border-radius: 8px;
+      font-weight: 800;
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-size: 18px;
+      letter-spacing: 0;
+    }
+
+    .brand p, .section-label, .muted {
+      color: var(--muted);
+      margin: 0;
+      font-size: 13px;
+    }
+
+    .nav {
+      display: grid;
+      gap: 8px;
+      margin-bottom: 28px;
+    }
+
+    .nav a {
+      color: var(--ink);
+      text-decoration: none;
+      padding: 10px 12px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border: 1px solid transparent;
+    }
+
+    .nav a.active, .nav a:hover {
+      background: var(--panel-strong);
+      border-color: var(--line);
+    }
+
+    .section-label {
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 700;
+      margin: 18px 0 10px;
+    }
+
+    .prompt-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .prompt {
+      text-align: left;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+      color: var(--ink);
+    }
+
+    .prompt:hover {
+      border-color: var(--blue);
+    }
+
+    .main {
+      min-width: 0;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 18px 26px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(246, 248, 251, 0.88);
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 2;
+    }
+
+    .topbar h2 {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    .mode-toggle {
+      display: inline-flex;
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .mode-toggle button {
+      padding: 8px 12px;
+      background: transparent;
+      color: var(--muted);
+    }
+
+    .mode-toggle button.active {
+      color: #fff;
+      background: var(--ink);
+    }
+
+    .chat {
+      padding: 26px;
+      overflow: auto;
+      display: grid;
+      align-content: start;
+      gap: 16px;
+    }
+
+    .empty {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 22px;
+      box-shadow: var(--shadow);
+    }
+
+    .empty h3 {
+      margin: 0 0 8px;
+      font-size: 24px;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 18px;
+    }
+
+    .chip {
+      border: 1px solid var(--line);
+      background: var(--panel-strong);
+      padding: 8px 10px;
+      border-radius: 999px;
+      color: var(--ink);
+      font-size: 13px;
+    }
+
+    .message {
+      max-width: 780px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      background: var(--panel);
+      line-height: 1.5;
+    }
+
+    .message.user {
+      justify-self: end;
+      border-color: #bfdbfe;
+      background: #eff6ff;
+    }
+
+    .message.assistant {
+      justify-self: start;
+    }
+
+    .composer {
+      padding: 18px 26px 24px;
+      border-top: 1px solid var(--line);
+      background: var(--bg);
+    }
+
+    .composer form {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: end;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 82px;
+      resize: vertical;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      color: var(--ink);
+      background: #fff;
+    }
+
+    .send {
+      height: 44px;
+      min-width: 108px;
+      color: #fff;
+      background: var(--blue);
+      border-radius: 8px;
+      font-weight: 700;
+    }
+
+    .send:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+
+    .panel h3 {
+      margin: 0;
+      padding: 14px;
+      border-bottom: 1px solid var(--line);
+      font-size: 15px;
+    }
+
+    .panel-body {
+      padding: 14px;
+    }
+
+    .job {
+      display: grid;
+      gap: 10px;
+    }
+
+    .job-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 13px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      padding: 5px 9px;
+      font-size: 12px;
+      font-weight: 700;
+      background: var(--panel-strong);
+      color: var(--muted);
+    }
+
+    .badge.queued { color: var(--amber); }
+    .badge.running { color: var(--blue); }
+    .badge.completed { color: var(--green); }
+    .badge.failed { color: var(--red); }
+
+    .artifact {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 9px 0;
+      border-bottom: 1px solid var(--line);
+      font-size: 13px;
+      width: 100%;
+      background: transparent;
+      color: var(--ink);
+      text-align: left;
+    }
+
+    .artifact:last-child {
+      border-bottom: 0;
+    }
+
+    .artifact:hover {
+      color: var(--blue);
+    }
+
+    .artifact-viewer {
+      margin-top: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: #0f172a;
+      color: #e5eefb;
+    }
+
+    .artifact-title {
+      padding: 9px 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+      font-size: 12px;
+      color: #bfdbfe;
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .artifact-content {
+      margin: 0;
+      max-height: 360px;
+      overflow: auto;
+      padding: 12px;
+      font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .about {
+      display: grid;
+      gap: 10px;
+      font-size: 13px;
+      line-height: 1.5;
+      color: var(--muted);
+    }
+
+    .footnote {
+      margin-top: 18px;
+      padding-top: 14px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    code {
+      background: var(--panel-strong);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 1px 5px;
+    }
+
+    @media (max-width: 1100px) {
+      .app {
+        grid-template-columns: 220px minmax(0, 1fr);
+      }
+
+      .status {
+        grid-column: 1 / -1;
+        border-left: 0;
+        border-top: 1px solid var(--line);
+      }
+    }
+
+    @media (max-width: 760px) {
+      .app {
+        display: block;
+      }
+
+      .sidebar {
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .topbar, .composer form {
+        display: grid;
+        gap: 12px;
+      }
+
+      .send {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="mark">EC</div>
+        <div>
+          <h1>EDA Copilot</h1>
+          <p>AI hardware workflow assistant</p>
+        </div>
+      </div>
+
+      <nav class="nav" aria-label="Primary">
+        <a href="#workspace" class="active">Workspace</a>
+        <a href="#jobs">Jobs</a>
+        <a href="#results">Results</a>
+        <a href="#about">About</a>
+      </nav>
+
+      <p class="section-label">Example Prompts</p>
+      <div class="prompt-list" id="promptList"></div>
+    </aside>
+
+    <main class="main" id="workspace">
+      <header class="topbar">
+        <div>
+          <h2>Chat Workspace</h2>
+          <p class="muted" id="apiStatus">Checking API connection...</p>
+        </div>
+        <div class="mode-toggle" aria-label="Execution mode">
+          <button type="button" class="active" data-mode="cloud">Cloud Demo</button>
+          <button type="button" data-mode="mcp">Local MCP</button>
+        </div>
+      </header>
+
+      <section class="chat" id="chatLog" aria-live="polite">
+        <div class="empty">
+          <h3>Start with a hardware task.</h3>
+          <p class="muted">The public app accepts synthesis, simulation, report summarization, and OpenLane RTL-to-GDS flow requests. Local MCP mode is reserved for trusted desktop clients with installed EDA tools.</p>
+          <div class="chips">
+            <span class="chip">Yosys synthesis</span>
+            <span class="chip">Icarus simulation</span>
+            <span class="chip">OpenLane reports</span>
+            <span class="chip">Controlled RTL-to-GDSII demo</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="composer">
+        <form id="chatForm">
+          <textarea id="messageInput" placeholder="Synthesize this 4-bit counter." maxlength="16000"></textarea>
+          <button class="send" id="sendButton" type="submit">Send</button>
+        </form>
+      </section>
+    </main>
+
+    <aside class="status">
+      <section class="panel" id="jobs">
+        <h3>Job Status</h3>
+        <div class="panel-body job" id="jobPanel">
+          <p class="muted">No jobs yet.</p>
+        </div>
+      </section>
+
+      <section class="panel" id="results">
+        <h3>Results Viewer</h3>
+        <div class="panel-body" id="resultsPanel">
+          <p class="muted">Completed job summaries will appear here.</p>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h3>Artifacts</h3>
+        <div class="panel-body" id="artifactPanel">
+          <p class="muted">Artifacts are unavailable until a job completes.</p>
+        </div>
+      </section>
+
+      <section class="panel" id="about">
+        <h3>Project Notes</h3>
+        <div class="panel-body about">
+          <p>This portfolio version separates trusted local MCP execution from a public cloud demo API.</p>
+          <p>The cloud planner is LLM-orchestrated and validated against allowlisted actions: <code>synthesize_verilog</code>, <code>simulate_verilog</code>, <code>summarize_report</code>, and <code>run_openlane_flow</code>.</p>
+          <p>Attribution is preserved in the README for the original MCP4EDA-inspired project.</p>
+        </div>
+      </section>
+
+      <div class="footnote">(c) 2026 Oluwaseyi Akinwande</div>
+    </aside>
+  </div>
+
+  <script>
+    const prompts = [
+      "Synthesize this 4-bit counter.",
+      "Simulate this adder with a testbench.",
+      "Explain this OpenLane timing report.",
+      "Run the demo RTL-to-GDSII flow."
+    ];
+
+    const API_BASE_URL = window.EDA_COPILOT_API_URL || window.location.origin || "http://localhost:8080";
+
+    const state = {
+      mode: "cloud",
+      apiOnline: false,
+      plannerMode: "browser_rule_based",
+      jobs: [],
+      messages: [],
+      polling: new Map(),
+      selectedArtifact: null
+    };
+
+    const promptList = document.getElementById("promptList");
+    const chatLog = document.getElementById("chatLog");
+    const form = document.getElementById("chatForm");
+    const input = document.getElementById("messageInput");
+    const sendButton = document.getElementById("sendButton");
+    const apiStatus = document.getElementById("apiStatus");
+    const jobPanel = document.getElementById("jobPanel");
+    const resultsPanel = document.getElementById("resultsPanel");
+    const artifactPanel = document.getElementById("artifactPanel");
+
+    prompts.forEach((prompt) => {
+      const button = document.createElement("button");
+      button.className = "prompt";
+      button.type = "button";
+      button.textContent = prompt;
+      button.addEventListener("click", () => {
+        input.value = prompt;
+        input.focus();
+      });
+      promptList.appendChild(button);
+    });
+
+    document.querySelectorAll("[data-mode]").forEach((button) => {
+      button.addEventListener("click", () => {
+        document.querySelectorAll("[data-mode]").forEach((item) => item.classList.remove("active"));
+        button.classList.add("active");
+        state.mode = button.dataset.mode;
+        addMessage("assistant", state.mode === "mcp"
+          ? "Local MCP mode uses the compiled stdio server from a trusted desktop client. The browser will keep showing safe demo jobs."
+          : "Cloud demo mode queues only allowlisted public workflows.");
+      });
+    });
+
+    checkApiHealth();
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const message = input.value.trim();
+      if (!message) return;
+
+      input.value = "";
+      addMessage("user", message);
+      sendButton.disabled = true;
+      addMessage("assistant", "Planning a safe EDA action...");
+      await checkApiHealth();
+
+      if (state.apiOnline && state.mode === "cloud") {
+        try {
+          const apiResult = await sendToApi(message);
+          if (apiResult.job) {
+            const job = normalizeApiJob(apiResult.job, message, apiResult.plannerDecision);
+            state.jobs.unshift(job);
+            replaceLastAssistant(`${apiResult.reply} Job ${job.id} is now ${job.status}.`);
+            renderPanels();
+            pollApiJob(job.id);
+          } else {
+            replaceLastAssistant(apiResult.reply || "The request could not be queued safely.");
+          }
+        } catch (error) {
+          state.apiOnline = false;
+          updateApiStatus();
+          replaceLastAssistant("The local API is unavailable, so I am switching to the in-browser demo path. Start the API to run real Yosys jobs and view artifacts.");
+          queueLocalDemo(message);
+        } finally {
+          sendButton.disabled = false;
+        }
+        return;
+      }
+
+      queueLocalDemo(message);
+      sendButton.disabled = false;
+    });
+
+    async function checkApiHealth() {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/health`, { method: "GET" });
+        state.apiOnline = response.ok;
+        if (response.ok) {
+          const body = await response.json();
+          state.plannerMode = body.plannerMode || "api";
+        }
+      } catch {
+        state.apiOnline = false;
+      }
+      updateApiStatus();
+    }
+
+    function updateApiStatus() {
+      apiStatus.textContent = state.apiOnline
+        ? `Connected to ${API_BASE_URL}. Planner: ${state.plannerMode}.`
+        : `API offline. Browser demo fallback planner is active.`;
+    }
+
+    async function sendToApi(message) {
+      const response = await fetch(`${API_BASE_URL}/api/chat`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-session-id": getSessionId()
+        },
+        body: JSON.stringify({ message })
+      });
+      const body = await response.json();
+      if (!response.ok && !body.reply) {
+        throw new Error(body.error?.message || "API request failed.");
+      }
+      return body;
+    }
+
+    async function pollApiJob(jobId) {
+      const existing = state.polling.get(jobId);
+      if (existing?.timeoutId) {
+        window.clearTimeout(existing.timeoutId);
+      }
+
+      const pollState = { timeoutId: null, failures: 0 };
+      state.polling.set(jobId, pollState);
+
+      const pollOnce = async () => {
+        try {
+          const response = await fetch(`${API_BASE_URL}/api/jobs/${jobId}`);
+          if (!response.ok) throw new Error("Job polling failed.");
+          const body = await response.json();
+          const updated = normalizeApiJob(body.job);
+          pollState.failures = 0;
+          mergeJob(updated);
+          renderPanels();
+
+          if (updated.status === "completed" || updated.status === "failed" || updated.status === "cancelled") {
+            state.polling.delete(jobId);
+            await loadApiArtifacts(jobId);
+            addMessage("assistant", updated.summary || `${labelAction(updated.type)} finished with status ${updated.status}.`);
+            return;
+          }
+
+          pollState.timeoutId = window.setTimeout(pollOnce, 2500);
+        } catch (error) {
+          pollState.failures += 1;
+          const job = state.jobs.find((item) => item.id === jobId);
+          if (job) {
+            job.summary = `Still waiting for Cloud Run. Poll retry ${pollState.failures}/8.`;
+            renderPanels();
+          }
+
+          if (pollState.failures >= 8) {
+            state.polling.delete(jobId);
+            addMessage("assistant", `I lost the live status stream for job ${jobId}. The job may still be running; refresh the page or query the job ID again.`);
+            return;
+          }
+
+          pollState.timeoutId = window.setTimeout(pollOnce, 3500);
+        }
+      };
+
+      pollState.timeoutId = window.setTimeout(pollOnce, 1200);
+    }
+
+    async function loadApiArtifacts(jobId) {
+      const response = await fetch(`${API_BASE_URL}/api/jobs/${jobId}/artifacts`);
+      if (!response.ok) return;
+      const body = await response.json();
+      const job = state.jobs.find((item) => item.id === jobId);
+      if (!job) return;
+      job.artifacts = Array.isArray(body.artifacts) ? body.artifacts : [];
+      renderPanels();
+    }
+
+    async function loadArtifactContent(jobId, artifactPath) {
+      const job = state.jobs.find((item) => item.id === jobId);
+      if (!job) return;
+
+      if (!state.apiOnline) {
+        state.selectedArtifact = {
+          path: artifactPath,
+          content: "Artifact content is only available when the API is running."
+        };
+        renderPanels();
+        return;
+      }
+
+      state.selectedArtifact = {
+        path: artifactPath,
+        content: "Loading artifact..."
+      };
+      renderPanels();
+
+      try {
+        const relativePath = artifactPath.startsWith(`jobs/${jobId}/`)
+          ? artifactPath.slice(`jobs/${jobId}/`.length)
+          : artifactPath;
+        const response = await fetch(`${API_BASE_URL}/api/jobs/${jobId}/artifacts/${encodeURIComponent(relativePath)}`);
+        const body = await response.json();
+        if (!response.ok) {
+          throw new Error(body.error?.message || "Artifact request failed.");
+        }
+        state.selectedArtifact = {
+          path: body.path,
+          content: body.content
+        };
+      } catch (error) {
+        state.selectedArtifact = {
+          path: artifactPath,
+          content: error instanceof Error ? error.message : "Artifact could not be loaded."
+        };
+      }
+      renderPanels();
+    }
+
+    function queueLocalDemo(message) {
+      window.setTimeout(() => {
+        const decision = classify(message);
+        if (decision.action === "unsupported") {
+          replaceLastAssistant("I can help with synthesis, simulation, real OpenLane flows, and report summaries. This request was not queued.");
+          return;
+        }
+
+        const job = createJob(decision.action, message, decision.reason);
+        replaceLastAssistant(`Queued ${labelAction(job.type)}. Job ${job.id} is now queued.`);
+        renderPanels();
+        simulateJob(job.id);
+      }, 550);
+    }
+
+    function classify(message) {
+      const normalized = message.toLowerCase();
+      if (normalized.includes("openlane") || normalized.includes("gds") || normalized.includes("rtl-to-gds")) {
+        return { action: "run_openlane_flow", reason: "OpenLane flow selected." };
+      }
+      if (normalized.includes("simulate") || normalized.includes("testbench") || normalized.includes("vcd")) {
+        return { action: "simulate_verilog", reason: "Simulation workflow selected." };
+      }
+      if (normalized.includes("report") || normalized.includes("timing") || normalized.includes("summary")) {
+        return { action: "summarize_report", reason: "Report summarization selected." };
+      }
+      if (normalized.includes("synthesize") || normalized.includes("yosys") || normalized.includes("verilog") || normalized.includes("counter")) {
+        return { action: "synthesize_verilog", reason: "Synthesis workflow selected." };
+      }
+      return { action: "unsupported", reason: "No allowlisted action matched." };
+    }
+
+    function createJob(type, inputText, reason) {
+      const job = {
+        id: crypto.randomUUID ? crypto.randomUUID().slice(0, 8) : Math.random().toString(36).slice(2, 10),
+        type,
+        inputText,
+        reason,
+        source: "browser_demo",
+        status: "queued",
+        createdAt: new Date(),
+        startedAt: null,
+        finishedAt: null,
+        artifacts: []
+      };
+      state.jobs.unshift(job);
+      return job;
+    }
+
+    function normalizeApiJob(apiJob, inputText = "", plannerDecision = null) {
+      return {
+        id: apiJob.id,
+        type: apiJob.type,
+        inputText: inputText || apiJob.inputPreview || "",
+        reason: plannerDecision?.reason || apiJob.plannerDecision?.reason || "API planner decision.",
+        source: "api",
+        status: apiJob.status,
+        createdAt: new Date(apiJob.createdAt),
+        startedAt: apiJob.startedAt ? new Date(apiJob.startedAt) : null,
+        finishedAt: apiJob.finishedAt ? new Date(apiJob.finishedAt) : null,
+        artifacts: Array.isArray(apiJob.artifactPaths) ? apiJob.artifactPaths : [],
+        summary: apiJob.summary || ""
+      };
+    }
+
+    function mergeJob(updated) {
+      const index = state.jobs.findIndex((job) => job.id === updated.id);
+      if (index === -1) {
+        state.jobs.unshift(updated);
+        return;
+      }
+      state.jobs[index] = { ...state.jobs[index], ...updated };
+      if (index === 0) {
+        state.selectedArtifact = null;
+      }
+    }
+
+    function simulateJob(jobId) {
+      window.setTimeout(() => {
+        const job = state.jobs.find((item) => item.id === jobId);
+        if (!job) return;
+        job.status = "running";
+        job.startedAt = new Date();
+        addMessage("assistant", `${labelAction(job.type)} is running. Status polling is active.`);
+        renderPanels();
+      }, 900);
+
+      window.setTimeout(() => {
+        const job = state.jobs.find((item) => item.id === jobId);
+        if (!job) return;
+        job.status = "completed";
+        job.finishedAt = new Date();
+        job.summary = summaryFor(job.type);
+        job.artifacts = [];
+        addMessage("assistant", job.summary);
+        renderPanels();
+      }, 2600);
+    }
+
+    function summaryFor(type) {
+      const summaries = {
+        synthesize_verilog: "Browser-only demo completed. Start the local API to run real Yosys synthesis and view design.v, yosys.log, synth_output.v, and result.json.",
+        simulate_verilog: "Simulation completed in demo mode. The production worker will run Icarus Verilog and preserve stdout, stderr, and VCD files.",
+        summarize_report: "Report summary completed in demo mode. The production flow will extract timing, area, power, warnings, and next actions.",
+        run_openlane_flow: "OpenLane flow queued. Start the API to run the real cloud toolchain and inspect generated artifacts."
+      };
+      return summaries[type];
+    }
+
+    function labelAction(type) {
+      return type.replaceAll("_", " ");
+    }
+
+    function getSessionId() {
+      const key = "eda-copilot-session-id";
+      const existing = window.localStorage.getItem(key);
+      if (existing) return existing;
+      const sessionId = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2);
+      window.localStorage.setItem(key, sessionId);
+      return sessionId;
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function addMessage(role, text) {
+      const empty = chatLog.querySelector(".empty");
+      if (empty) empty.remove();
+
+      const message = document.createElement("article");
+      message.className = `message ${role}`;
+      message.textContent = text;
+      chatLog.appendChild(message);
+      chatLog.scrollTop = chatLog.scrollHeight;
+      state.messages.push({ role, text });
+    }
+
+    function replaceLastAssistant(text) {
+      const messages = [...chatLog.querySelectorAll(".message.assistant")];
+      const last = messages[messages.length - 1];
+      if (last) {
+        last.textContent = text;
+      } else {
+        addMessage("assistant", text);
+      }
+    }
+
+    function renderPanels() {
+      if (state.jobs.length === 0) return;
+      const [current] = state.jobs;
+
+      jobPanel.innerHTML = `
+        <div class="job-row"><span>Status</span><span class="badge ${escapeHtml(current.status)}">${escapeHtml(current.status)}</span></div>
+        <div class="job-row"><span>Job ID</span><strong>${escapeHtml(current.id)}</strong></div>
+        <div class="job-row"><span>Type</span><strong>${escapeHtml(labelAction(current.type))}</strong></div>
+        <div class="job-row"><span>Created</span><span>${current.createdAt.toLocaleTimeString()}</span></div>
+        <div class="job-row"><span>Planner</span><span>${escapeHtml(current.reason)}</span></div>
+      `;
+
+      resultsPanel.innerHTML = current.status === "completed" || current.status === "failed"
+        ? `<p>${escapeHtml(current.summary || `${labelAction(current.type)} finished with status ${current.status}.`)}</p>`
+        : `<p class="muted">${escapeHtml(current.summary || "Waiting for job completion. OpenLane runs can take 60-90 seconds.")}</p>`;
+
+      artifactPanel.innerHTML = current.artifacts.length
+        ? current.artifacts.map((artifact) => `<button class="artifact" type="button" data-artifact="${escapeHtml(artifact)}"><span>${escapeHtml(artifact)}</span><span>view</span></button>`).join("")
+        : `<p class="muted">${current.source === "api" ? `Artifact unavailable while job is ${escapeHtml(current.status)}.` : "No real artifacts in browser-only fallback. Start the API, then submit the prompt again."}</p>`;
+
+      artifactPanel.querySelectorAll("[data-artifact]").forEach((button) => {
+        button.addEventListener("click", () => {
+          loadArtifactContent(current.id, button.getAttribute("data-artifact"));
+        });
+      });
+
+      if (state.selectedArtifact) {
+        artifactPanel.insertAdjacentHTML("beforeend", `
+          <div class="artifact-viewer">
+            <div class="artifact-title">${escapeHtml(state.selectedArtifact.path)}</div>
+            <pre class="artifact-content">${escapeHtml(state.selectedArtifact.content)}</pre>
+          </div>
+        `);
+      }
+    }
+  </script>
+</body>
+</html>

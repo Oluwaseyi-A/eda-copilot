@@ -1,0 +1,42 @@
+{
+  "name": "eda-copilot",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Portfolio-grade AI EDA assistant with local MCP tools and a safe cloud-demo API scaffold.",
+  "main": "build/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node build/index.js",
+    "start:mcp": "node build/index.js",
+    "start:api": "node build/cloud-api.js",
+    "dev:local": "node scripts/dev-local.mjs",
+    "dev": "tsc --watch",
+    "check": "tsc --noEmit",
+    "smoke:api": "node scripts/smoke-api.mjs",
+    "smoke:deployed": "node scripts/smoke-deployed.mjs",
+    "smoke:openlane": "node scripts/smoke-openlane.mjs",
+    "smoke:placeholder-openlane": "node scripts/smoke-placeholder-openlane.mjs",
+    "test": "npm run check"
+  },
+  "keywords": [
+    "eda",
+    "mcp",
+    "verilog",
+    "yosys",
+    "openlane",
+    "portfolio"
+  ],
+  "author": "Olu",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/olu/eda-copilot.git"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.11.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.21",
+    "typescript": "^5.8.3"
+  }
+}

@@ -1,0 +1,1 @@
+window.EDA_COPILOT_API_URL = "https://YOUR-CLOUD-RUN-URL";

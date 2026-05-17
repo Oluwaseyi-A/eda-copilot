@@ -1,0 +1,12 @@
+build/
+node_modules/
+.eda-copilot/
+.git/
+.env
+.env.*
+npm-debug.log*
+*.log
+Dockerfile
+README.md
+TODO.md
+scripts/
