@@ -193,17 +193,15 @@ async function executeJob(job: JobRecord): Promise<void> {
     return;
   }
 
-  await new Promise((resolve) => setTimeout(resolve, 1_250));
-  if (job.status === "cancelled") return;
+  if (job.type === "simulate_verilog") {
+    await executeSimulationJob(job);
+    return;
+  }
 
-  job.status = "completed";
-  job.finishedAt = new Date().toISOString();
-  job.artifactPaths = [
-    `jobs/${job.id}/input/request.txt`,
-    `jobs/${job.id}/logs/${job.type}.log`,
-    `jobs/${job.id}/artifacts/result.json`,
-  ];
-  job.summary = buildMockSummary(job);
+  if (job.type === "summarize_report") {
+    await executeReportSummaryJob(job);
+    return;
+  }
 }
 
 async function executeSynthesisJob(job: JobRecord): Promise<void> {
@@ -294,17 +292,228 @@ async function executeSynthesisJob(job: JobRecord): Promise<void> {
   }
 }
 
-function buildMockSummary(job: JobRecord): string {
-  switch (job.type) {
-    case "synthesize_verilog":
-      return "**Mock Yosys synthesis completed.** Start the API to run real synthesis and view `design.v`, `yosys.log`, `synth_output.v`, and `result.json`.";
-    case "simulate_verilog":
-      return "**Mock simulation completed.** A real worker runs Icarus Verilog and captures stdout, stderr, and VCD waveforms.";
-    case "summarize_report":
-      return "**Mock report summary created.** The production flow extracts timing slack, area, power estimates, and DRC warnings.";
-    case "run_openlane_flow":
-      return "**OpenLane flow completed.** Review `openlane.log` and generated artifacts for flow details.";
+async function executeSimulationJob(job: JobRecord): Promise<void> {
+  const jobDir = join(jobStorageRoot, job.id);
+  const inputDir = join(jobDir, "input");
+  const logsDir = join(jobDir, "logs");
+  const artifactsDir = join(jobDir, "artifacts");
+  const logPath = join(logsDir, "iverilog.log");
+  const resultPath = join(artifactsDir, "result.json");
+
+  await fs.mkdir(inputDir, { recursive: true });
+  await fs.mkdir(logsDir, { recursive: true });
+  await fs.mkdir(artifactsDir, { recursive: true });
+
+  const { designCode, testbenchCode } = extractSimulationFiles(job.input);
+
+  if (!testbenchCode) {
+    await fs.writeFile(resultPath, JSON.stringify({
+      jobId: job.id, type: job.type, status: "failed",
+      error: "No testbench provided.",
+    }, null, 2));
+    job.status = "failed";
+    job.finishedAt = new Date().toISOString();
+    job.artifactPaths = [`jobs/${job.id}/artifacts/result.json`];
+    job.summary = "Simulation requires a testbench. Provide two Verilog blocks — the design module first, then a testbench with `$dumpfile`, `$dumpvars`, and `$finish`.";
+    return;
   }
+
+  const designPath = join(inputDir, "design.v");
+  const tbPath = join(inputDir, "testbench.v");
+  const simBinaryPath = join(inputDir, "simulation");
+  const MAX_VCD_BYTES = 10 * 1024 * 1024;
+
+  await fs.writeFile(designPath, designCode);
+  const selfContained = testbenchCode === designCode;
+  if (!selfContained) await fs.writeFile(tbPath, testbenchCode);
+
+  const compileArgs = selfContained
+    ? ["-o", simBinaryPath, designPath]
+    : ["-o", simBinaryPath, designPath, tbPath];
+
+  try {
+    const { stdout: compileOut, stderr: compileErr } = await execFileAsync(
+      "iverilog", compileArgs,
+      { timeout: 30_000, killSignal: "SIGKILL" as NodeJS.Signals, maxBuffer: 4 * 1024 * 1024 },
+    );
+
+    let simOut = "";
+    let simErr = "";
+    let timedOut = false;
+
+    try {
+      const simResult = await execFileAsync(
+        "vvp", [simBinaryPath],
+        { cwd: inputDir, timeout: 30_000, killSignal: "SIGKILL" as NodeJS.Signals, maxBuffer: 8 * 1024 * 1024 },
+      );
+      simOut = simResult.stdout;
+      simErr = simResult.stderr;
+    } catch (simError: any) {
+      if (simError.killed) {
+        timedOut = true;
+        simOut = typeof simError.stdout === "string" ? simError.stdout : "";
+        simErr = typeof simError.stderr === "string" ? simError.stderr : "";
+      } else {
+        throw simError;
+      }
+    }
+
+    const fullLog = [compileOut, compileErr, simOut, simErr].filter(Boolean).join("\n");
+    await fs.writeFile(logPath, fullLog);
+
+    const vcdArtifacts: string[] = [];
+    let vcdNote = "";
+    try {
+      const dirFiles = await fs.readdir(inputDir);
+      for (const f of dirFiles.filter((f) => f.endsWith(".vcd"))) {
+        const src = join(inputDir, f);
+        const stat = await fs.stat(src);
+        if (stat.size > MAX_VCD_BYTES) {
+          await fs.unlink(src);
+          vcdNote = `VCD \`${f}\` exceeded 10 MB and was discarded — reduce simulation duration or dump scope.`;
+        } else if (stat.size > 0) {
+          await fs.copyFile(src, join(artifactsDir, f));
+          vcdArtifacts.push(`jobs/${job.id}/artifacts/${f}`);
+        }
+      }
+    } catch { /* no VCD generated */ }
+
+    await fs.writeFile(resultPath, JSON.stringify({
+      jobId: job.id, type: job.type,
+      status: timedOut ? "timed_out" : "completed",
+      timedOut, vcdGenerated: vcdArtifacts.length > 0,
+      stdout: simOut.slice(0, 2000), stderr: simErr.slice(0, 2000),
+    }, null, 2));
+
+    job.status = "completed";
+    job.finishedAt = new Date().toISOString();
+    job.artifactPaths = [
+      `jobs/${job.id}/input/design.v`,
+      ...(!selfContained ? [`jobs/${job.id}/input/testbench.v`] : []),
+      `jobs/${job.id}/logs/iverilog.log`,
+      ...vcdArtifacts,
+      `jobs/${job.id}/artifacts/result.json`,
+    ];
+
+    const parts: string[] = [];
+    parts.push(timedOut
+      ? "Simulation **timed out** after 30 seconds — ensure `$finish` is called and check for infinite loops."
+      : "Real **Icarus Verilog** simulation completed.");
+    parts.push(vcdArtifacts.length > 0
+      ? `VCD waveform \`${vcdArtifacts[0].split("/").pop()}\` is in the Artifacts tab.`
+      : "No VCD generated — add `$dumpfile` and `$dumpvars` to your testbench.");
+    if (vcdNote) parts.push(vcdNote);
+    if (simOut.trim()) parts.push(`\n**stdout:**\n\`\`\`\n${simOut.slice(0, 400)}\n\`\`\``);
+    job.summary = parts.join(" ");
+
+  } catch (error: any) {
+    if (error?.code === "ENOENT") {
+      await fs.writeFile(logPath, "iverilog not found on PATH.\n");
+      await fs.writeFile(resultPath, JSON.stringify({
+        jobId: job.id, type: job.type, status: "completed_with_mock",
+        note: "Icarus Verilog is not installed in this environment.",
+      }, null, 2));
+      job.status = "completed";
+      job.finishedAt = new Date().toISOString();
+      job.artifactPaths = [
+        `jobs/${job.id}/input/design.v`,
+        `jobs/${job.id}/logs/iverilog.log`,
+        `jobs/${job.id}/artifacts/result.json`,
+      ];
+      job.summary = "Simulation demo completed for the design, but Icarus Verilog was not available — result is mocked.";
+      return;
+    }
+    const errorText = error?.message || String(error);
+    const stdout = typeof error?.stdout === "string" ? error.stdout : "";
+    const stderr = typeof error?.stderr === "string" ? error.stderr : "";
+    await fs.writeFile(logPath, [stdout, stderr, errorText].filter(Boolean).join("\n"));
+    await fs.writeFile(resultPath, JSON.stringify({
+      jobId: job.id, type: job.type, status: "failed", error: errorText,
+    }, null, 2));
+    job.artifactPaths = [
+      `jobs/${job.id}/input/design.v`,
+      `jobs/${job.id}/logs/iverilog.log`,
+      `jobs/${job.id}/artifacts/result.json`,
+    ];
+    throw new Error(`Simulation failed for ${job.id}. See iverilog.log.`);
+  }
+}
+
+async function executeReportSummaryJob(job: JobRecord): Promise<void> {
+  const jobDir = join(jobStorageRoot, job.id);
+  const artifactsDir = join(jobDir, "artifacts");
+  const resultPath = join(artifactsDir, "result.json");
+
+  await fs.mkdir(artifactsDir, { recursive: true });
+
+  const reportText = job.input.slice(0, 8_000);
+  let summary: string;
+
+  if (process.env.OPENAI_API_KEY) {
+    try {
+      summary = await summarizeReportText(reportText);
+    } catch {
+      summary = extractReportMetrics(reportText);
+    }
+  } else {
+    summary = extractReportMetrics(reportText);
+  }
+
+  await fs.writeFile(resultPath, JSON.stringify({
+    jobId: job.id, type: job.type, status: "completed", summary,
+  }, null, 2));
+
+  job.status = "completed";
+  job.finishedAt = new Date().toISOString();
+  job.artifactPaths = [`jobs/${job.id}/artifacts/result.json`];
+  job.summary = summary;
+}
+
+async function summarizeReportText(reportText: string): Promise<string> {
+  const model = process.env.OPENAI_SUMMARY_MODEL || process.env.OPENAI_PLANNER_MODEL || "gpt-4o-mini";
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      max_tokens: 400,
+      temperature: 0.3,
+      messages: [
+        {
+          role: "system",
+          content: "You are an EDA expert. Summarize the provided OpenLane or EDA tool report in 3–5 sentences using markdown. Extract key metrics: WNS/TNS timing slack, cell count, area, power. Note any violations or critical warnings. Be concise and technical.",
+        },
+        { role: "user", content: reportText },
+      ],
+    }),
+  });
+
+  if (!response.ok) throw new Error(`OpenAI report summarizer failed with ${response.status}`);
+  const body = await response.json() as any;
+  const text = body.choices?.[0]?.message?.content?.trim();
+  if (!text) throw new Error("Empty response from OpenAI.");
+  return text;
+}
+
+function extractReportMetrics(reportText: string): string {
+  const parts: string[] = [];
+  const wns = reportText.match(/WNS[:\s]+(-?\d+\.?\d*)/i);
+  const tns = reportText.match(/TNS[:\s]+(-?\d+\.?\d*)/i);
+  const cells = reportText.match(/Number of cells[:\s]+(\d+)/i);
+  const area = reportText.match(/Total cell area[:\s]+([\d.]+)/i);
+
+  if (wns) parts.push(`**WNS:** ${wns[1]} ns`);
+  if (tns) parts.push(`**TNS:** ${tns[1]} ns`);
+  if (cells) parts.push(`**Cells:** ${cells[1]}`);
+  if (area) parts.push(`**Area:** ${area[1]} μm²`);
+
+  if (parts.length === 0) {
+    return "Report received. Configure `OPENAI_API_KEY` for AI-powered analysis, or paste timing/synthesis report text for metric extraction.";
+  }
+  return parts.join(" · ") + "\n\nAdd `OPENAI_API_KEY` for a detailed narrative summary.";
 }
 
 async function executeOpenLaneJob(job: JobRecord): Promise<void> {
@@ -597,6 +806,27 @@ function extractVerilog(input: string): string {
     "endmodule",
     "",
   ].join("\n");
+}
+
+function extractSimulationFiles(input: string): { designCode: string; testbenchCode: string | null } {
+  const fenceRegex = /```(?:verilog|systemverilog|sv)?\s*([\s\S]*?)```/gi;
+  const blocks: string[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = fenceRegex.exec(input)) !== null) {
+    const code = match[1]?.trim();
+    if (code) blocks.push(code);
+  }
+
+  if (blocks.length >= 2) return { designCode: blocks[0], testbenchCode: blocks[1] };
+
+  const candidate = blocks[0] ?? (input.includes("module ") ? input : "");
+  if (!candidate) return { designCode: "", testbenchCode: null };
+
+  const moduleCount = (candidate.match(/\bmodule\s+[A-Za-z_]/g) || []).length;
+  if (moduleCount >= 2 && /\$finish|\$dumpfile/.test(candidate)) {
+    return { designCode: candidate, testbenchCode: candidate };
+  }
+  return { designCode: candidate, testbenchCode: null };
 }
 
 function inferTopModule(verilogCode: string): string {

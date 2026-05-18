@@ -19,7 +19,7 @@ ENV PORT=8080
 ENV PATH="/root/.nix-profile/bin:/nix/var/nix/profiles/default/bin:/nix/var/nix/profiles/default/sbin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends ca-certificates yosys \
+  && apt-get install -y --no-install-recommends ca-certificates yosys iverilog \
   && rm -rf /var/lib/apt/lists/*
 
 COPY --from=openlane /nix /nix
