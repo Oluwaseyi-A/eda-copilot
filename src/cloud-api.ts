@@ -4,7 +4,7 @@ import { createServer, IncomingMessage, ServerResponse } from "http";
 import { randomUUID } from "crypto";
 import { execFile } from "child_process";
 import { promises as fs } from "fs";
-import { join, normalize, sep } from "path";
+import { join, normalize, sep, basename } from "path";
 import { promisify } from "util";
 import { AllowedAction, planIntent, PlannerDecision } from "./planner.js";
 
@@ -297,13 +297,13 @@ async function executeSynthesisJob(job: JobRecord): Promise<void> {
 function buildMockSummary(job: JobRecord): string {
   switch (job.type) {
     case "synthesize_verilog":
-      return "Mock Yosys synthesis completed. Next step: wire this job to the worker container and store real logs in Cloud Storage.";
+      return "**Mock Yosys synthesis completed.** Start the API to run real synthesis and view `design.v`, `yosys.log`, `synth_output.v`, and `result.json`.";
     case "simulate_verilog":
-      return "Mock Icarus Verilog simulation completed. A real worker should capture stdout, stderr, and VCD artifacts.";
+      return "**Mock simulation completed.** A real worker runs Icarus Verilog and captures stdout, stderr, and VCD waveforms.";
     case "summarize_report":
-      return "Mock report summary created with timing, area, and warning sections ready for an LLM summarizer.";
+      return "**Mock report summary created.** The production flow extracts timing slack, area, power estimates, and DRC warnings.";
     case "run_openlane_flow":
-      return "OpenLane flow completed.";
+      return "**OpenLane flow completed.** Review `openlane.log` and generated artifacts for flow details.";
   }
 }
 
@@ -381,7 +381,7 @@ async function executeOpenLaneJob(job: JobRecord): Promise<void> {
       ...copiedArtifacts,
       `jobs/${job.id}/artifacts/result.json`,
     ];
-    job.summary = `Real OpenLane flow completed for ${topModule}. ${prepared.summarySuffix}Review openlane.log and generated artifacts for flow details.`;
+    job.summary = `Real **OpenLane flow** completed for \`${topModule}\`. ${prepared.summarySuffix}Review \`openlane.log\` and the generated artifacts — GDS layout, DEF, gate-level netlist, and signoff reports — for full flow details.`;
   } catch (error: any) {
     const errorText = error?.message || String(error);
     const stdout = typeof error?.stdout === "string" ? error.stdout : "";
@@ -555,6 +555,18 @@ async function collectOpenLaneArtifacts(
     }
   }
 
+  const gdsArtifact = collected.find((p) => p.endsWith(".gds"));
+  if (gdsArtifact) {
+    const gdsRelative = gdsArtifact.slice(`jobs/${jobId}/`.length);
+    const gdsDiskPath = join(jobStorageRoot, jobId, gdsRelative);
+    const pngName = basename(gdsRelative, ".gds") + "_preview.png";
+    const pngDiskPath = join(artifactsDir, pngName);
+    const ok = await generateGdsPreview(gdsDiskPath, pngDiskPath);
+    if (ok) {
+      collected.unshift(`jobs/${jobId}/artifacts/${pngName}`);
+    }
+  }
+
   return collected;
 }
 
@@ -610,13 +622,14 @@ function parseYosysMetrics(log: string): Record<string, number> {
 
 function formatSynthesisSummary(topModule: string, metrics: Record<string, number>, mocked: boolean): string {
   if (mocked) {
-    return `Synthesis demo completed for ${topModule}, but Yosys was not available so the result is mocked.`;
+    return `Synthesis demo completed for \`${topModule}\`, but Yosys was not available — the result is mocked.`;
   }
 
-  const parts = [`Real Yosys synthesis completed for ${topModule}.`];
-  if (metrics.cells !== undefined) parts.push(`${metrics.cells} cells`);
-  if (metrics.wires !== undefined) parts.push(`${metrics.wires} wires`);
-  if (metrics.wireBits !== undefined) parts.push(`${metrics.wireBits} wire bits`);
+  const parts = [`Real **Yosys synthesis** completed for \`${topModule}\`.`];
+  if (metrics.cells !== undefined) parts.push(`**${metrics.cells} cells**`);
+  if (metrics.wires !== undefined) parts.push(`**${metrics.wires} wires**`);
+  if (metrics.wireBits !== undefined) parts.push(`**${metrics.wireBits} wire bits**`);
+  parts.push("Consider running the **OpenLane flow** next for physical design.");
   return parts.join(" ");
 }
 
@@ -644,7 +657,7 @@ async function summarizeSynthesisResult(
         input: [
           {
             role: "system",
-            content: [{ type: "input_text", text: "Summarize a Yosys synthesis result for a hardware designer in 2 concise sentences. Mention whether this was real synthesis and include key metrics if present." }],
+            content: [{ type: "input_text", text: "Summarize a Yosys synthesis result for a hardware designer in 2–3 concise sentences using markdown. Include whether synthesis was real, key metrics (cells, wires, wire bits), and suggest a next step such as running OpenLane for physical design." }],
           },
           {
             role: "user",
@@ -689,6 +702,139 @@ function extractOpenAIText(body: any): string {
   return "";
 }
 
+async function generateGdsPreview(gdsPath: string, pngPath: string): Promise<boolean> {
+  try {
+    const rubyScript = [
+      "view = RBA::LayoutView.new",
+      "view.load_layout($input, 0)",
+      "view.max_hier",
+      "view.zoom_fit",
+      "view.save_image($output, 1200, 900)",
+      "view._destroy",
+    ].join("\n");
+
+    const scriptPath = gdsPath + ".export.rb";
+    await fs.writeFile(scriptPath, rubyScript, "utf8");
+
+    await execFileAsync("klayout", ["-z", "-rd", `input=${gdsPath}`, "-rd", `output=${pngPath}`, "-r", scriptPath], {
+      env: { ...process.env, QT_QPA_PLATFORM: "offscreen" },
+      timeout: 60_000,
+    });
+
+    await fs.unlink(scriptPath).catch(() => {});
+    const stat = await fs.stat(pngPath);
+    return stat.size > 0;
+  } catch {
+    return false;
+  }
+}
+
+async function streamContextualReply(
+  message: string,
+  decision: PlannerDecision,
+  job: JobRecord,
+  sendEvent: (data: object) => void,
+): Promise<void> {
+  if (!process.env.OPENAI_API_KEY) {
+    sendEvent({ type: "token", text: buildStaticContextualReply(decision, job) });
+    return;
+  }
+
+  const systemPrompt = [
+    "You are EDA Copilot, an expert AI assistant for hardware design engineers.",
+    "The user submitted an EDA request. You already classified it and queued a job.",
+    "Write a helpful 2–4 sentence markdown response that:",
+    "states what tool is running and why,",
+    "mentions design details you observed (module name, ports, clock, bit width),",
+    "sets expectations for what artifacts and results to expect,",
+    "and suggests a natural follow-up action.",
+    "Use backticks for module names, filenames, and tool names.",
+    "Refer to the job as already running. Be concise and expert.",
+  ].join(" ");
+
+  const userContent = JSON.stringify({
+    userMessage: message,
+    action: decision.action,
+    topModule: decision.parameters.topModule,
+    hasVerilog: decision.parameters.hasVerilog,
+    requestedFlow: decision.parameters.requestedFlow,
+    designType: decision.parameters.designType,
+    bitWidth: decision.parameters.bitWidth,
+    jobId: job.id,
+    plannerReason: decision.reason,
+  });
+
+  const model = process.env.OPENAI_PLANNER_MODEL ?? "gpt-4o-mini";
+  const openaiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      stream: true,
+      max_tokens: 280,
+      temperature: 0.4,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userContent },
+      ],
+    }),
+  });
+
+  if (!openaiResponse.ok || !openaiResponse.body) {
+    sendEvent({ type: "token", text: buildStaticContextualReply(decision, job) });
+    return;
+  }
+
+  const reader = openaiResponse.body.getReader();
+  const decoder = new TextDecoder();
+  let sseBuffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    sseBuffer += decoder.decode(value, { stream: true });
+    const lines = sseBuffer.split("\n");
+    sseBuffer = lines.pop() ?? "";
+
+    for (const line of lines) {
+      if (!line.startsWith("data: ")) continue;
+      const data = line.slice(6).trim();
+      if (data === "[DONE]") return;
+
+      try {
+        const parsed = JSON.parse(data) as { choices?: Array<{ delta?: { content?: string } }> };
+        const token = parsed.choices?.[0]?.delta?.content;
+        if (typeof token === "string") {
+          sendEvent({ type: "token", text: token });
+        }
+      } catch {
+        // skip malformed SSE chunks
+      }
+    }
+  }
+}
+
+function buildStaticContextualReply(decision: PlannerDecision, job: JobRecord): string {
+  const mod = decision.parameters.topModule ?? "your design";
+  const shortId = job.id.slice(0, 8);
+  switch (decision.action) {
+    case "synthesize_verilog":
+      return `Running **Yosys synthesis** on \`${mod}\`. I'll generate an optimized gate-level netlist and report cell count, wire count, and timing. Job \`${shortId}\` is running — artifacts including \`synth_output.v\`, \`yosys.log\`, and \`result.json\` will be ready shortly.`;
+    case "simulate_verilog":
+      return `Starting **Icarus Verilog** simulation for \`${mod}\`. The testbench will run and capture stdout, stderr, and a VCD waveform. Job \`${shortId}\` is queued.`;
+    case "run_openlane_flow":
+      return `Launching the full **OpenLane RTL-to-GDS flow** for \`${mod}\` targeting the Sky130A PDK. This runs synthesis → floorplan → placement → routing → signoff and typically takes 60–90 seconds. Job \`${shortId}\` is running — final artifacts include the GDS layout, DEF, gate-level netlist, and signoff reports.`;
+    case "summarize_report":
+      return `Analyzing the **OpenLane report** for \`${mod}\`. I'll extract timing slack, area utilization, power estimates, and any DRC violations. Job \`${shortId}\` is running.`;
+    default:
+      return `Job \`${shortId}\` has been queued.`;
+  }
+}
+
 function publicJob(job: JobRecord): Omit<JobRecord, "input"> & { inputPreview: string } {
   const { input, ...rest } = job;
   return {
@@ -697,7 +843,7 @@ function publicJob(job: JobRecord): Omit<JobRecord, "input"> & { inputPreview: s
   };
 }
 
-async function readJobArtifact(job: JobRecord, artifactPath: string): Promise<{ path: string; content: string }> {
+async function readJobArtifact(job: JobRecord, artifactPath: string): Promise<{ path: string; content: string; encoding?: string }> {
   const decodedPath = decodeURIComponent(artifactPath);
   const allowed = job.artifactPaths.includes(decodedPath);
   if (!allowed) {
@@ -720,6 +866,10 @@ async function readJobArtifact(job: JobRecord, artifactPath: string): Promise<{ 
   }
 
   const diskPath = join(jobStorageRoot, job.id, normalizedRelative);
+  if (diskPath.endsWith(".png")) {
+    const buf = await fs.readFile(diskPath);
+    return { path: decodedPath, content: buf.toString("base64"), encoding: "base64" };
+  }
   const content = await fs.readFile(diskPath, "utf8");
   return { path: decodedPath, content };
 }
@@ -766,6 +916,65 @@ async function handleRequest(request: IncomingMessage, response: ServerResponse)
       plannerModel: process.env.OPENAI_API_KEY ? (process.env.OPENAI_PLANNER_MODEL || "gpt-4o-mini") : undefined,
       time: new Date().toISOString(),
     }, correlationId);
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/chat/stream") {
+    let body: Record<string, unknown>;
+    try {
+      body = await readJsonBody(request);
+    } catch (parseError: unknown) {
+      const msg = parseError instanceof Error ? parseError.message : "Invalid request body.";
+      sendJson(response, 400, { error: { code: "bad_request", message: msg } }, correlationId);
+      return;
+    }
+
+    let streamMessage: string;
+    try {
+      streamMessage = stringField(body, "message", { required: true, maxLength: 16_000 });
+    } catch (fieldError: unknown) {
+      const msg = fieldError instanceof Error ? fieldError.message : "Invalid message field.";
+      sendJson(response, 400, { error: { code: "bad_request", message: msg } }, correlationId);
+      return;
+    }
+
+    response.writeHead(200, {
+      "content-type": "text/event-stream",
+      "cache-control": "no-cache, no-store",
+      "connection": "keep-alive",
+      "x-accel-buffering": "no",
+      "access-control-allow-origin": "*",
+      "access-control-allow-headers": "content-type,x-session-id,x-correlation-id",
+      "x-correlation-id": correlationId,
+    });
+
+    const sendEvent = (data: object): void => {
+      if (!response.writableEnded) {
+        response.write(`data: ${JSON.stringify(data)}\n\n`);
+      }
+    };
+
+    try {
+      const decision = await planIntent(streamMessage);
+
+      if (decision.action === "unsupported") {
+        sendEvent({ type: "token", text: "I can help with **synthesis**, **simulation**, **OpenLane flows**, and **report summaries**. This request doesn't match a supported EDA workflow — try describing a specific design task." });
+        sendEvent({ type: "done" });
+        response.end();
+        return;
+      }
+
+      const streamJob = createJob(decision.action, buildJobInput(streamMessage, decision), sessionId, correlationId, decision);
+      sendEvent({ type: "job", job: publicJob(streamJob) });
+
+      await streamContextualReply(streamMessage, decision, streamJob, sendEvent);
+      sendEvent({ type: "done" });
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
+      sendEvent({ type: "error", text: msg });
+    }
+
+    response.end();
     return;
   }
 

@@ -5,530 +5,754 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>EDA Copilot</title>
   <script src="config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
   <style>
     :root {
-      color-scheme: light;
-      --bg: #f6f8fb;
-      --panel: #ffffff;
-      --panel-strong: #eef3f8;
-      --ink: #1c2430;
-      --muted: #617083;
-      --line: #d8e0ea;
-      --blue: #2563eb;
-      --teal: #0f766e;
-      --amber: #b45309;
-      --red: #b42318;
-      --green: #15803d;
-      --shadow: 0 18px 50px rgba(22, 34, 51, 0.12);
+      --bg:          #f0f2f5;
+      --surface:     #ffffff;
+      --surface-2:   #f5f7fa;
+      --border:      #e2e8f0;
+      --ink:         #0f172a;
+      --ink-2:       #475569;
+      --blue:        #2563eb;
+      --blue-light:  #eff6ff;
+      --blue-border: #bfdbfe;
+      --teal:        #0f766e;
+      --green:       #16a34a;
+      --amber:       #d97706;
+      --red:         #dc2626;
+      --avatar-bg:   linear-gradient(135deg, #2563eb, #0f766e);
     }
 
-    * {
-      box-sizing: border-box;
-    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      margin: 0;
-      min-height: 100vh;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      font-size: 14px;
       background: var(--bg);
       color: var(--ink);
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      height: 100vh;
+      overflow: hidden;
     }
 
-    button, textarea, input {
-      font: inherit;
-    }
+    button { font: inherit; border: 0; cursor: pointer; background: none; }
+    a { color: inherit; text-decoration: none; }
 
-    button {
-      border: 0;
-      cursor: pointer;
-    }
-
+    /* ── App shell ───────────────────────────────────────────── */
     .app {
-      min-height: 100vh;
       display: grid;
-      grid-template-columns: 260px minmax(0, 1fr) 340px;
+      grid-template-columns: 200px 1fr 440px;
+      grid-template-rows: 100vh;
+      height: 100vh;
     }
 
-    .sidebar, .status {
-      background: var(--panel);
-      border-color: var(--line);
-      padding: 22px;
-    }
-
+    /* ── LEFT SIDEBAR ────────────────────────────────────────── */
     .sidebar {
-      border-right: 1px solid var(--line);
-    }
-
-    .status {
-      border-left: 1px solid var(--line);
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
     }
 
     .brand {
+      padding: 18px 16px 14px;
       display: flex;
       align-items: center;
       gap: 10px;
-      margin-bottom: 28px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
     }
-
-    .mark {
-      width: 34px;
-      height: 34px;
-      display: grid;
-      place-items: center;
+    .brand-mark {
+      width: 30px; height: 30px;
+      border-radius: 7px;
+      background: var(--avatar-bg);
       color: #fff;
-      background: linear-gradient(135deg, var(--blue), var(--teal));
-      border-radius: 8px;
-      font-weight: 800;
+      font-size: 11px; font-weight: 800;
+      display: grid; place-items: center;
+      flex-shrink: 0;
     }
+    .brand-name { font-size: 14px; font-weight: 700; line-height: 1.2; }
+    .brand-sub  { font-size: 11px; color: var(--ink-2); }
 
-    .brand h1 {
-      margin: 0;
-      font-size: 18px;
-      letter-spacing: 0;
-    }
-
-    .brand p, .section-label, .muted {
-      color: var(--muted);
-      margin: 0;
-      font-size: 13px;
-    }
-
-    .nav {
-      display: grid;
-      gap: 8px;
-      margin-bottom: 28px;
-    }
-
-    .nav a {
-      color: var(--ink);
-      text-decoration: none;
-      padding: 10px 12px;
-      border-radius: 8px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      border: 1px solid transparent;
-    }
-
-    .nav a.active, .nav a:hover {
-      background: var(--panel-strong);
-      border-color: var(--line);
-    }
-
-    .section-label {
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      font-weight: 700;
-      margin: 18px 0 10px;
+    .sidebar-section {
+      padding: 14px 14px 6px;
+      font-size: 10px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--ink-2);
+      flex-shrink: 0;
     }
 
     .prompt-list {
-      display: grid;
-      gap: 8px;
+      padding: 0 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      overflow-y: auto;
+      flex: 1;
     }
 
-    .prompt {
+    .prompt-btn {
       text-align: left;
-      background: #fff;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 10px;
-      color: var(--ink);
-    }
-
-    .prompt:hover {
-      border-color: var(--blue);
-    }
-
-    .main {
-      min-width: 0;
-      display: grid;
-      grid-template-rows: auto 1fr auto;
-    }
-
-    .topbar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 18px 26px;
-      border-bottom: 1px solid var(--line);
-      background: rgba(246, 248, 251, 0.88);
-      backdrop-filter: blur(12px);
-      position: sticky;
-      top: 0;
-      z-index: 2;
-    }
-
-    .topbar h2 {
-      margin: 0;
-      font-size: 18px;
-    }
-
-    .mode-toggle {
-      display: inline-flex;
-      border: 1px solid var(--line);
-      background: #fff;
-      border-radius: 8px;
-      overflow: hidden;
-    }
-
-    .mode-toggle button {
-      padding: 8px 12px;
-      background: transparent;
-      color: var(--muted);
-    }
-
-    .mode-toggle button.active {
-      color: #fff;
-      background: var(--ink);
-    }
-
-    .chat {
-      padding: 26px;
-      overflow: auto;
-      display: grid;
-      align-content: start;
-      gap: 16px;
-    }
-
-    .empty {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 22px;
-      box-shadow: var(--shadow);
-    }
-
-    .empty h3 {
-      margin: 0 0 8px;
-      font-size: 24px;
-    }
-
-    .chips {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 18px;
-    }
-
-    .chip {
-      border: 1px solid var(--line);
-      background: var(--panel-strong);
       padding: 8px 10px;
-      border-radius: 999px;
+      border-radius: 7px;
+      font-size: 12px;
       color: var(--ink);
-      font-size: 13px;
+      line-height: 1.4;
+      border: 1px solid transparent;
     }
+    .prompt-btn:hover { background: var(--surface-2); border-color: var(--border); }
 
-    .message {
-      max-width: 780px;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 14px;
-      background: var(--panel);
-      line-height: 1.5;
+    .sidebar-footer {
+      padding: 12px 14px;
+      border-top: 1px solid var(--border);
+      font-size: 11px;
+      color: var(--ink-2);
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
     }
-
-    .message.user {
-      justify-self: end;
-      border-color: #bfdbfe;
-      background: #eff6ff;
+    .conn-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--ink-2);
+      display: inline-block;
+      margin-right: 5px;
+      vertical-align: middle;
     }
+    .conn-dot.online  { background: var(--green); }
+    .conn-dot.offline { background: var(--red); }
 
-    .message.assistant {
-      justify-self: start;
-    }
-
-    .composer {
-      padding: 18px 26px 24px;
-      border-top: 1px solid var(--line);
+    /* ── CENTER: CHAT ────────────────────────────────────────── */
+    .main {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
       background: var(--bg);
     }
 
-    .composer form {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 10px;
-      align-items: end;
+    .topbar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 22px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+      gap: 12px;
     }
+    .topbar-left  { display: flex; align-items: center; gap: 10px; }
+    .topbar-title { font-size: 15px; font-weight: 600; }
+    .topbar-mode  {
+      font-size: 11px; font-weight: 600;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 3px 10px;
+      color: var(--ink-2);
+    }
+    .topbar-right { display: flex; align-items: center; gap: 8px; }
 
-    textarea {
-      width: 100%;
-      min-height: 82px;
-      resize: vertical;
-      border: 1px solid var(--line);
+    .mode-toggle {
+      display: inline-flex;
+      border: 1px solid var(--border);
       border-radius: 8px;
-      padding: 12px;
-      color: var(--ink);
-      background: #fff;
+      overflow: hidden;
+      background: var(--surface);
     }
+    .mode-toggle button {
+      padding: 6px 12px;
+      color: var(--ink-2);
+      font-size: 12px;
+    }
+    .mode-toggle button.active { background: var(--ink); color: #fff; }
 
-    .send {
-      height: 44px;
-      min-width: 108px;
-      color: #fff;
+    .new-chat-btn {
+      padding: 6px 12px;
       background: var(--blue);
-      border-radius: 8px;
-      font-weight: 700;
+      color: #fff;
+      border-radius: 7px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .new-chat-btn:hover { opacity: 0.88; }
+
+    /* ── Chat area ───────────────────────────────────────────── */
+    .chat {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
     }
 
-    .send:disabled {
-      opacity: 0.55;
-      cursor: not-allowed;
+    /* empty state */
+    .empty-state {
+      margin: auto;
+      max-width: 480px;
+      text-align: center;
+      padding: 32px 0;
+    }
+    .empty-mark {
+      width: 48px; height: 48px;
+      border-radius: 12px;
+      background: var(--avatar-bg);
+      color: #fff;
+      font-size: 16px; font-weight: 800;
+      display: grid; place-items: center;
+      margin: 0 auto 16px;
+    }
+    .empty-state h2 { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+    .empty-state p  { color: var(--ink-2); line-height: 1.6; margin-bottom: 20px; }
+    .empty-chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+    .chip {
+      padding: 5px 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      font-size: 12px;
+      color: var(--ink-2);
     }
 
-    .panel {
-      border: 1px solid var(--line);
+    /* ── Messages ─────────────────────────────────────────────── */
+    .message {
+      display: flex;
+      gap: 11px;
+      max-width: 100%;
+    }
+    .message.user {
+      flex-direction: row-reverse;
+    }
+
+    .msg-avatar {
+      width: 30px; height: 30px;
       border-radius: 8px;
-      background: var(--panel);
-      margin-bottom: 16px;
+      background: var(--avatar-bg);
+      color: #fff;
+      font-size: 10px; font-weight: 800;
+      display: grid; place-items: center;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .msg-bubble {
+      max-width: 640px;
+      padding: 11px 14px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      line-height: 1.6;
+    }
+    .message.user .msg-bubble {
+      background: var(--blue-light);
+      border-color: var(--blue-border);
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: var(--ink);
+    }
+
+    /* markdown inside bubbles */
+    .msg-bubble p { margin: 0 0 0.6em; }
+    .msg-bubble p:last-child { margin-bottom: 0; }
+    .msg-bubble h1, .msg-bubble h2, .msg-bubble h3 { margin: 0.8em 0 0.35em; line-height: 1.3; }
+    .msg-bubble h1 { font-size: 1.15em; }
+    .msg-bubble h2 { font-size: 1.05em; }
+    .msg-bubble h3 { font-size: 1em; }
+    .msg-bubble ul, .msg-bubble ol { margin: 0.4em 0; padding-left: 1.4em; }
+    .msg-bubble li { margin: 0.15em 0; }
+    .msg-bubble strong { font-weight: 700; }
+    .msg-bubble em     { font-style: italic; }
+    .msg-bubble a { color: var(--blue); }
+    .msg-bubble code {
+      background: #f1f5f9;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 1px 5px;
+      font: 0.86em/1.4 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    .msg-bubble pre { margin: 0.7em 0; border-radius: 8px; overflow: auto; }
+    .msg-bubble pre code { background: none; border: none; padding: 12px; font-size: 12px; display: block; }
+    .msg-bubble table { border-collapse: collapse; margin: 0.5em 0; font-size: 13px; }
+    .msg-bubble th, .msg-bubble td { border: 1px solid var(--border); padding: 5px 10px; }
+    .msg-bubble th { background: var(--surface-2); }
+    .msg-bubble blockquote { border-left: 3px solid var(--border); padding: 3px 12px; color: var(--ink-2); margin: 0.5em 0; }
+
+    /* inline job chip */
+    .job-chip {
+      display: inline-flex; align-items: center; gap: 7px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 5px 10px;
+      font-size: 12px;
+      margin-top: 10px;
+      font-family: ui-monospace, monospace;
+      max-width: 100%;
+    }
+    .job-chip .dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--ink-2);
+      flex-shrink: 0;
+    }
+    .job-chip[data-status="queued"]    .dot { background: var(--amber); }
+    .job-chip[data-status="running"]   .dot { background: var(--blue); animation: dot-pulse 1.2s ease-in-out infinite; }
+    .job-chip[data-status="completed"] .dot { background: var(--green); }
+    .job-chip[data-status="failed"]    .dot { background: var(--red); }
+    .job-chip-label { color: var(--ink-2); }
+    .job-chip-id    { font-weight: 600; color: var(--ink); }
+
+    /* typing indicator */
+    .typing-indicator {
+      display: flex; align-items: center; gap: 4px;
+      padding: 11px 14px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      width: fit-content;
+    }
+    .typing-indicator span {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--ink-2);
+      animation: bounce 1.2s ease-in-out infinite;
+    }
+    .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes bounce {
+      0%,60%,100% { transform: translateY(0); opacity: 0.4; }
+      30%          { transform: translateY(-5px); opacity: 1; }
+    }
+    @keyframes dot-pulse {
+      0%,100% { opacity: 1; }
+      50%     { opacity: 0.3; }
+    }
+
+    /* streaming cursor */
+    .stream-cursor::after {
+      content: "▋";
+      animation: blink 0.9s step-end infinite;
+      color: var(--blue);
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+    /* ── Composer ─────────────────────────────────────────────── */
+    .composer {
+      padding: 12px 22px 16px;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .composer-box {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--bg);
+      overflow: hidden;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .composer-box:focus-within {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
+    }
+    textarea {
+      display: block; width: 100%;
+      min-height: 56px; max-height: 200px;
+      resize: none; overflow-y: auto;
+      padding: 12px 14px 4px;
+      border: none; outline: none;
+      background: transparent;
+      font: inherit; font-size: 14px;
+      color: var(--ink);
+      line-height: 1.5;
+    }
+    .composer-actions {
+      display: flex; align-items: center;
+      justify-content: space-between;
+      padding: 6px 10px 8px;
+    }
+    .composer-hint { font-size: 11px; color: var(--ink-2); }
+    .send-btn {
+      height: 34px; min-width: 68px;
+      padding: 0 14px;
+      background: var(--blue);
+      color: #fff;
+      border-radius: 7px;
+      font-size: 13px; font-weight: 600;
+    }
+    .send-btn:hover   { opacity: 0.88; }
+    .send-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    /* ── RIGHT PANEL ─────────────────────────────────────────── */
+    .panel-sidebar {
+      border-left: 1px solid var(--border);
+      background: var(--surface);
+      display: flex;
+      flex-direction: column;
       overflow: hidden;
     }
 
-    .panel h3 {
-      margin: 0;
-      padding: 14px;
-      border-bottom: 1px solid var(--line);
-      font-size: 15px;
-    }
-
-    .panel-body {
-      padding: 14px;
-    }
-
-    .job {
-      display: grid;
-      gap: 10px;
-    }
-
-    .job-row {
+    .panel-tabs {
       display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      font-size: 13px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      background: var(--surface-2);
     }
-
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      border-radius: 999px;
-      padding: 5px 9px;
-      font-size: 12px;
-      font-weight: 700;
-      background: var(--panel-strong);
-      color: var(--muted);
+    .panel-tab {
+      flex: 1;
+      padding: 12px 0;
+      font-size: 13px; font-weight: 500;
+      color: var(--ink-2);
+      border-bottom: 2px solid transparent;
+      text-align: center;
     }
-
-    .badge.queued { color: var(--amber); }
-    .badge.running { color: var(--blue); }
-    .badge.completed { color: var(--green); }
-    .badge.failed { color: var(--red); }
-
-    .artifact {
-      display: flex;
-      justify-content: space-between;
-      gap: 10px;
-      padding: 9px 0;
-      border-bottom: 1px solid var(--line);
-      font-size: 13px;
-      width: 100%;
-      background: transparent;
-      color: var(--ink);
-      text-align: left;
-    }
-
-    .artifact:last-child {
-      border-bottom: 0;
-    }
-
-    .artifact:hover {
+    .panel-tab.active {
       color: var(--blue);
+      border-bottom-color: var(--blue);
+      background: var(--surface);
     }
+    .panel-tab:hover:not(.active) { color: var(--ink); background: var(--border); }
+
+    .tab-pane {
+      display: none;
+      flex-direction: column;
+      flex: 1;
+      overflow: hidden;
+    }
+    .tab-pane.active { display: flex; }
+    .tab-inner {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+    }
+
+    /* Status tab */
+    .status-empty { color: var(--ink-2); font-size: 13px; text-align: center; padding: 32px 0; }
+    .job-meta { display: flex; flex-direction: column; gap: 1px; }
+    .job-row {
+      display: flex; justify-content: space-between; align-items: baseline;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+      gap: 10px;
+    }
+    .job-row:last-child { border-bottom: 0; }
+    .job-row-label { color: var(--ink-2); flex-shrink: 0; }
+    .job-row-value { font-weight: 500; text-align: right; word-break: break-all; }
+
+    .status-badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-size: 11px; font-weight: 700;
+      background: var(--surface-2);
+      color: var(--ink-2);
+    }
+    .status-badge.queued    { color: var(--amber); }
+    .status-badge.running   { color: var(--blue); }
+    .status-badge.completed { color: var(--green); }
+    .status-badge.failed    { color: var(--red); }
+
+    .progress-bar { height: 3px; background: var(--border); border-radius: 2px; margin: 12px 0 4px; overflow: hidden; }
+    .progress-fill {
+      height: 100%; background: var(--blue); border-radius: 2px;
+      animation: indeterminate 1.6s ease-in-out infinite; width: 30%;
+    }
+    @keyframes indeterminate {
+      0%   { transform: translateX(-200%); width: 30%; }
+      50%  { width: 55%; }
+      100% { transform: translateX(350%); width: 30%; }
+    }
+
+    .result-body { font-size: 13px; line-height: 1.6; }
+    .result-body p { margin: 0 0 0.6em; }
+    .result-body p:last-child { margin-bottom: 0; }
+    .result-body strong { font-weight: 700; }
+    .result-body code {
+      background: var(--surface-2); border: 1px solid var(--border);
+      border-radius: 4px; padding: 1px 5px;
+      font-family: ui-monospace, monospace; font-size: 0.9em;
+    }
+    .result-body pre { margin: 0.6em 0; border-radius: 6px; overflow: auto; font-size: 12px; }
+    .result-body pre code { background: none; border: none; padding: 10px; display: block; }
+
+    /* Artifacts tab */
+    .artifact-list { display: flex; flex-direction: column; gap: 2px; }
+    .artifact-btn {
+      display: flex; align-items: center; gap: 8px;
+      padding: 9px 10px;
+      border-radius: 7px;
+      text-align: left;
+      font-size: 12px;
+      font-family: ui-monospace, monospace;
+      border: 1px solid transparent;
+      color: var(--ink);
+      width: 100%;
+    }
+    .artifact-btn:hover { background: var(--surface-2); border-color: var(--border); }
+    .artifact-btn.selected { background: var(--blue-light); border-color: var(--blue-border); }
+    .artifact-icon {
+      font-size: 14px; flex-shrink: 0;
+      width: 22px; text-align: center;
+    }
+    .artifact-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .artifact-ext { color: var(--ink-2); font-size: 11px; flex-shrink: 0; }
+    .artifact-empty { color: var(--ink-2); font-size: 13px; text-align: center; padding: 32px 0; }
 
     .artifact-viewer {
       margin-top: 12px;
-      border: 1px solid var(--line);
+      border: 1px solid var(--border);
       border-radius: 8px;
       overflow: hidden;
-      background: #0f172a;
-      color: #e5eefb;
+      background: #0d1117;
     }
-
-    .artifact-title {
-      padding: 9px 10px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.14);
-      font-size: 12px;
-      color: #bfdbfe;
-      background: rgba(255, 255, 255, 0.06);
+    .artifact-viewer-header {
+      padding: 8px 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      background: rgba(255,255,255,0.04);
+      display: flex; justify-content: space-between; align-items: center;
     }
-
-    .artifact-content {
-      margin: 0;
-      max-height: 360px;
+    .artifact-viewer-name {
+      font-size: 11px; color: #93c5fd;
+      font-family: ui-monospace, monospace;
+    }
+    .artifact-viewer-lang {
+      font-size: 10px; color: #64748b;
+      font-family: ui-monospace, monospace;
+    }
+    .artifact-viewer-body {
       overflow: auto;
+      max-height: 360px;
+    }
+    .artifact-viewer-body pre {
+      margin: 0; padding: 0;
+    }
+    .artifact-viewer-body pre code {
+      display: block;
       padding: 12px;
-      font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    /* if not code-highlighted, raw text */
+    .artifact-raw {
+      padding: 12px;
+      font: 12px/1.5 ui-monospace, monospace;
+      color: #e5eefb;
       white-space: pre-wrap;
       word-break: break-word;
     }
 
-    .about {
-      display: grid;
-      gap: 10px;
+    /* ── Artifact overlay ───────────────────────────────────────── */
+    .artifact-overlay {
+      display: none;
+      flex-direction: column;
+      flex: 1;
+      overflow: hidden;
+    }
+    .main.overlay-open .chat     { display: none; }
+    .main.overlay-open .composer { display: none; }
+    .main.overlay-open .artifact-overlay { display: flex; }
+
+    .overlay-topbar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 22px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+      gap: 12px;
+    }
+    .overlay-title {
       font-size: 13px;
-      line-height: 1.5;
-      color: var(--muted);
+      font-family: ui-monospace, monospace;
+      color: var(--ink);
+      font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
-
-    .footnote {
-      margin-top: 18px;
-      padding-top: 14px;
-      border-top: 1px solid var(--line);
-      color: var(--muted);
-      font-size: 12px;
-    }
-
-    code {
-      background: var(--panel-strong);
-      border: 1px solid var(--line);
+    .overlay-close-btn {
+      padding: 4px 12px;
+      border: 1px solid var(--border);
       border-radius: 6px;
-      padding: 1px 5px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--ink-2);
+      flex-shrink: 0;
     }
+    .overlay-close-btn:hover { background: var(--surface-2); }
 
-    @media (max-width: 1100px) {
-      .app {
-        grid-template-columns: 220px minmax(0, 1fr);
-      }
-
-      .status {
-        grid-column: 1 / -1;
-        border-left: 0;
-        border-top: 1px solid var(--line);
-      }
+    .overlay-body {
+      flex: 1;
+      overflow: auto;
+      padding: 24px 22px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
     }
+    .overlay-image {
+      max-width: 100%;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    }
+    .overlay-code-block {
+      width: 100%;
+      background: #0d1117;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .overlay-code-block pre { margin: 0; }
+    .overlay-code-block pre code {
+      display: block;
+      padding: 20px;
+      font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      white-space: pre-wrap;
+      word-break: break-word;
+      overflow: auto;
+      max-height: calc(100vh - 160px);
+    }
+    .overlay-loading { color: var(--ink-2); font-size: 14px; padding: 40px 0; }
 
-    @media (max-width: 760px) {
-      .app {
-        display: block;
-      }
-
-      .sidebar {
-        border-right: 0;
-        border-bottom: 1px solid var(--line);
-      }
-
-      .topbar, .composer form {
-        display: grid;
-        gap: 12px;
-      }
-
-      .send {
-        width: 100%;
-      }
+    /* ── Responsive ───────────────────────────────────────────── */
+    @media (max-width: 1200px) {
+      .app { grid-template-columns: 180px 1fr 380px; }
+    }
+    @media (max-width: 960px) {
+      .app { grid-template-columns: 1fr; grid-template-rows: auto; height: auto; overflow: auto; }
+      body { height: auto; overflow: auto; }
+      .sidebar { border-right: 0; border-bottom: 1px solid var(--border); }
+      .main { height: 80vh; }
+      .panel-sidebar { border-left: 0; border-top: 1px solid var(--border); height: 60vh; }
     }
   </style>
 </head>
 <body>
   <div class="app">
+
+    <!-- ── Left sidebar ──────────────────────────────────────── -->
     <aside class="sidebar">
       <div class="brand">
-        <div class="mark">EC</div>
+        <div class="brand-mark">EC</div>
         <div>
-          <h1>EDA Copilot</h1>
-          <p>AI hardware workflow assistant</p>
+          <div class="brand-name">EDA Copilot</div>
+          <div class="brand-sub">AI hardware assistant</div>
         </div>
       </div>
 
-      <nav class="nav" aria-label="Primary">
-        <a href="#workspace" class="active">Workspace</a>
-        <a href="#jobs">Jobs</a>
-        <a href="#results">Results</a>
-        <a href="#about">About</a>
-      </nav>
-
-      <p class="section-label">Example Prompts</p>
+      <div class="sidebar-section">Example Prompts</div>
       <div class="prompt-list" id="promptList"></div>
+
+      <div class="sidebar-footer">
+        <span><span class="conn-dot" id="connDot"></span><span id="connLabel">Connecting…</span></span>
+        <span style="color:var(--ink-2)">© 2026 Oluwaseyi Akinwande</span>
+      </div>
     </aside>
 
-    <main class="main" id="workspace">
+    <!-- ── Center: chat ───────────────────────────────────────── -->
+    <main class="main">
       <header class="topbar">
-        <div>
-          <h2>Chat Workspace</h2>
-          <p class="muted" id="apiStatus">Checking API connection...</p>
+        <div class="topbar-left">
+          <span class="topbar-title">Workspace</span>
+          <span class="topbar-mode" id="modeLabel">Cloud</span>
         </div>
-        <div class="mode-toggle" aria-label="Execution mode">
-          <button type="button" class="active" data-mode="cloud">Cloud Demo</button>
-          <button type="button" data-mode="mcp">Local MCP</button>
+        <div class="topbar-right">
+          <div class="mode-toggle">
+            <button type="button" class="active" data-mode="cloud">Cloud</button>
+            <button type="button" data-mode="local">Local Demo</button>
+          </div>
+          <button class="new-chat-btn" id="newChatBtn">+ New Chat</button>
         </div>
       </header>
 
       <section class="chat" id="chatLog" aria-live="polite">
-        <div class="empty">
-          <h3>Start with a hardware task.</h3>
-          <p class="muted">The public app accepts synthesis, simulation, report summarization, and OpenLane RTL-to-GDS flow requests. Local MCP mode is reserved for trusted desktop clients with installed EDA tools.</p>
-          <div class="chips">
+        <div class="empty-state" id="emptyState">
+          <div class="empty-mark">EC</div>
+          <h2>Start with a hardware task.</h2>
+          <p>Describe any EDA workflow in natural language. The cloud planner uses an LLM to route your request to synthesis, simulation, or a full OpenLane RTL-to-GDS run.</p>
+          <div class="empty-chips">
             <span class="chip">Yosys synthesis</span>
             <span class="chip">Icarus simulation</span>
-            <span class="chip">OpenLane reports</span>
-            <span class="chip">Controlled RTL-to-GDSII demo</span>
+            <span class="chip">OpenLane RTL-to-GDS</span>
+            <span class="chip">Report summarization</span>
           </div>
         </div>
       </section>
 
-      <section class="composer">
-        <form id="chatForm">
-          <textarea id="messageInput" placeholder="Synthesize this 4-bit counter." maxlength="16000"></textarea>
-          <button class="send" id="sendButton" type="submit">Send</button>
-        </form>
-      </section>
+      <!-- Artifact overlay: replaces chat+composer when open -->
+      <div class="artifact-overlay" id="artifactOverlay">
+        <div class="overlay-topbar">
+          <span class="overlay-title" id="overlayTitle"></span>
+          <button class="overlay-close-btn" id="overlayCloseBtn">x Close</button>
+        </div>
+        <div class="overlay-body" id="overlayBody">
+          <span class="overlay-loading">Loading…</span>
+        </div>
+      </div>
+
+      <div class="composer">
+        <div class="composer-box">
+          <textarea id="messageInput" placeholder="Describe a hardware task or paste Verilog…" maxlength="16000" rows="3"></textarea>
+          <div class="composer-actions">
+            <span class="composer-hint">Ctrl+Enter to send</span>
+            <button class="send-btn" id="sendButton" type="button">Send</button>
+          </div>
+        </div>
+      </div>
     </main>
 
-    <aside class="status">
-      <section class="panel" id="jobs">
-        <h3>Job Status</h3>
-        <div class="panel-body job" id="jobPanel">
-          <p class="muted">No jobs yet.</p>
-        </div>
-      </section>
+    <!-- ── Right panel ────────────────────────────────────────── -->
+    <aside class="panel-sidebar">
+      <div class="panel-tabs">
+        <button class="panel-tab active" data-tab="status">Job Status</button>
+        <button class="panel-tab" data-tab="artifacts">Artifacts</button>
+      </div>
 
-      <section class="panel" id="results">
-        <h3>Results Viewer</h3>
-        <div class="panel-body" id="resultsPanel">
-          <p class="muted">Completed job summaries will appear here.</p>
+      <div class="tab-pane active" id="pane-status">
+        <div class="tab-inner" id="statusInner">
+          <p class="status-empty">No jobs yet.<br>Submit a task to get started.</p>
         </div>
-      </section>
+      </div>
 
-      <section class="panel">
-        <h3>Artifacts</h3>
-        <div class="panel-body" id="artifactPanel">
-          <p class="muted">Artifacts are unavailable until a job completes.</p>
+      <div class="tab-pane" id="pane-artifacts">
+        <div class="tab-inner" id="artifactsInner">
+          <p class="artifact-empty">Artifacts appear here once a job completes.</p>
         </div>
-      </section>
-
-      <section class="panel" id="about">
-        <h3>Project Notes</h3>
-        <div class="panel-body about">
-          <p>This portfolio version separates trusted local MCP execution from a public cloud demo API.</p>
-          <p>The cloud planner is LLM-orchestrated and validated against allowlisted actions: <code>synthesize_verilog</code>, <code>simulate_verilog</code>, <code>summarize_report</code>, and <code>run_openlane_flow</code>.</p>
-          <p>Attribution is preserved in the README for the original MCP4EDA-inspired project.</p>
-        </div>
-      </section>
-
-      <div class="footnote">(c) 2026 Oluwaseyi Akinwande</div>
+      </div>
     </aside>
-  </div>
+
+  </div><!-- .app -->
 
   <script>
-    const prompts = [
-      "Synthesize this 4-bit counter.",
-      "Simulate this adder with a testbench.",
-      "Explain this OpenLane timing report.",
-      "Run the demo RTL-to-GDSII flow."
-    ];
-
+    // ── Config ────────────────────────────────────────────────
     const API_BASE_URL = window.EDA_COPILOT_API_URL || window.location.origin || "http://localhost:8080";
 
+    // ── marked + hljs setup ──────────────────────────────────
+    if (typeof marked !== "undefined") {
+      const _r = new marked.Renderer();
+      _r.code = function(code, lang) {
+        const c = typeof code === "string" ? code : "";
+        const l = typeof lang === "string" ? lang : "";
+        const language = (l && typeof hljs !== "undefined" && hljs.getLanguage(l)) ? l : "plaintext";
+        const highlighted = typeof hljs !== "undefined"
+          ? hljs.highlight(c, { language }).value : escHtml(c);
+        return `<pre><code class="hljs language-${escHtml(language)}">${highlighted}</code></pre>`;
+      };
+      marked.setOptions({ renderer: _r, breaks: true, gfm: true });
+    }
+
+    function md(text) {
+      if (typeof marked === "undefined") return escHtml(text).replace(/\n/g, "<br>");
+      try { return marked.parse(text); } catch { return escHtml(text).replace(/\n/g, "<br>"); }
+    }
+
+    // ── State ─────────────────────────────────────────────────
     const state = {
       mode: "cloud",
       apiOnline: false,
@@ -536,404 +760,665 @@
       jobs: [],
       messages: [],
       polling: new Map(),
-      selectedArtifact: null
+      selectedArtifact: null,
+      streaming: false,
+      currentJobId: null,
     };
 
-    const promptList = document.getElementById("promptList");
-    const chatLog = document.getElementById("chatLog");
-    const form = document.getElementById("chatForm");
-    const input = document.getElementById("messageInput");
-    const sendButton = document.getElementById("sendButton");
-    const apiStatus = document.getElementById("apiStatus");
-    const jobPanel = document.getElementById("jobPanel");
-    const resultsPanel = document.getElementById("resultsPanel");
-    const artifactPanel = document.getElementById("artifactPanel");
+    // ── DOM ───────────────────────────────────────────────────
+    const chatLog      = document.getElementById("chatLog");
+    const messageInput = document.getElementById("messageInput");
+    const sendButton   = document.getElementById("sendButton");
+    const promptList   = document.getElementById("promptList");
+    const statusInner  = document.getElementById("statusInner");
+    const artifactsInner = document.getElementById("artifactsInner");
+    const connDot      = document.getElementById("connDot");
+    const connLabel    = document.getElementById("connLabel");
+    const modeLabel    = document.getElementById("modeLabel");
 
-    prompts.forEach((prompt) => {
-      const button = document.createElement("button");
-      button.className = "prompt";
-      button.type = "button";
-      button.textContent = prompt;
-      button.addEventListener("click", () => {
-        input.value = prompt;
-        input.focus();
-      });
-      promptList.appendChild(button);
+    // ── Example prompts ───────────────────────────────────────
+    [
+      "Synthesize this 4-bit counter.",
+      "Run the full OpenLane RTL-to-GDS flow.",
+      "Simulate this adder with a testbench.",
+      "Summarize this OpenLane timing report.",
+    ].forEach((p) => {
+      const btn = document.createElement("button");
+      btn.className = "prompt-btn";
+      btn.textContent = p;
+      btn.addEventListener("click", () => { messageInput.value = p; messageInput.focus(); });
+      promptList.appendChild(btn);
     });
 
-    document.querySelectorAll("[data-mode]").forEach((button) => {
-      button.addEventListener("click", () => {
-        document.querySelectorAll("[data-mode]").forEach((item) => item.classList.remove("active"));
-        button.classList.add("active");
-        state.mode = button.dataset.mode;
-        addMessage("assistant", state.mode === "mcp"
-          ? "Local MCP mode uses the compiled stdio server from a trusted desktop client. The browser will keep showing safe demo jobs."
-          : "Cloud demo mode queues only allowlisted public workflows.");
+    // ── Tab switching ─────────────────────────────────────────
+    document.querySelectorAll(".panel-tab").forEach((btn) => {
+      btn.addEventListener("click", () => switchTab(btn.dataset.tab));
+    });
+
+    function switchTab(tab) {
+      document.querySelectorAll(".panel-tab").forEach((b) => b.classList.remove("active"));
+      document.querySelectorAll(".tab-pane").forEach((p) => p.classList.remove("active"));
+      document.querySelector(`[data-tab="${tab}"]`).classList.add("active");
+      document.getElementById(`pane-${tab}`).classList.add("active");
+    }
+
+    // ── Mode toggle ───────────────────────────────────────────
+    document.querySelectorAll("[data-mode]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll("[data-mode]").forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+        state.mode = btn.dataset.mode;
+        modeLabel.textContent = state.mode === "local" ? "Local Demo" : "Cloud";
+        addMsg("assistant", state.mode === "local"
+          ? "**Local demo mode** — responses are simulated in the browser."
+          : "**Cloud mode** — requests go to the LLM planner and run real EDA tools.");
       });
     });
 
-    checkApiHealth();
+    // ── New Chat ──────────────────────────────────────────────
+    document.getElementById("newChatBtn").addEventListener("click", () => {
+      chatLog.innerHTML = "";
+      const es = document.createElement("div");
+      es.id = "emptyState"; es.className = "empty-state";
+      es.innerHTML = `
+        <div class="empty-mark">EC</div>
+        <h2>Start with a hardware task.</h2>
+        <p>Describe any EDA workflow in natural language. The cloud planner uses an LLM to route your request to synthesis, simulation, or a full OpenLane RTL-to-GDS run.</p>
+        <div class="empty-chips">
+          <span class="chip">Yosys synthesis</span>
+          <span class="chip">Icarus simulation</span>
+          <span class="chip">OpenLane RTL-to-GDS</span>
+          <span class="chip">Report summarization</span>
+        </div>`;
+      chatLog.appendChild(es);
+      state.messages = [];
+      state.selectedArtifact = null;
+      statusInner.innerHTML = `<p class="status-empty">No jobs yet.<br>Submit a task to get started.</p>`;
+      artifactsInner.innerHTML = `<p class="artifact-empty">Artifacts appear here once a job completes.</p>`;
+      switchTab("status");
+    });
 
-    form.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const message = input.value.trim();
-      if (!message) return;
+    // ── Textarea auto-grow ────────────────────────────────────
+    messageInput.addEventListener("input", () => {
+      messageInput.style.height = "auto";
+      messageInput.style.height = Math.min(messageInput.scrollHeight, 200) + "px";
+    });
 
-      input.value = "";
-      addMessage("user", message);
+    // ── Ctrl+Enter ────────────────────────────────────────────
+    messageInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); handleSend(); }
+    });
+    sendButton.addEventListener("click", handleSend);
+
+    // ── Health check ──────────────────────────────────────────
+    checkHealth();
+
+    async function checkHealth() {
+      try {
+        const r = await fetch(`${API_BASE_URL}/api/health`);
+        state.apiOnline = r.ok;
+        if (r.ok) { const b = await r.json(); state.plannerMode = b.plannerMode || "api"; }
+      } catch { state.apiOnline = false; }
+      updateConnStatus();
+    }
+
+    function updateConnStatus() {
+      connDot.className = "conn-dot " + (state.apiOnline ? "online" : "offline");
+      connLabel.textContent = state.apiOnline
+        ? (state.plannerMode === "llm_openai" ? "AI planner" : "rule-based")
+        : "offline";
+    }
+
+    // ── Send handler ──────────────────────────────────────────
+    async function handleSend() {
+      const message = messageInput.value.trim();
+      if (!message || state.streaming) return;
+
+      messageInput.value = ""; messageInput.style.height = "";
+      addMsg("user", message);
       sendButton.disabled = true;
-      addMessage("assistant", "Planning a safe EDA action...");
-      await checkApiHealth();
+
+      await checkHealth();
 
       if (state.apiOnline && state.mode === "cloud") {
         try {
-          const apiResult = await sendToApi(message);
-          if (apiResult.job) {
-            const job = normalizeApiJob(apiResult.job, message, apiResult.plannerDecision);
-            state.jobs.unshift(job);
-            replaceLastAssistant(`${apiResult.reply} Job ${job.id} is now ${job.status}.`);
-            renderPanels();
-            pollApiJob(job.id);
-          } else {
-            replaceLastAssistant(apiResult.reply || "The request could not be queued safely.");
+          await streamFromApi(message);
+        } catch {
+          try {
+            showTyping();
+            const res = await sendToApi(message);
+            hideTyping();
+            if (res.job) {
+              const job = apiJobToLocal(res.job, message, res.plannerDecision);
+              state.jobs.unshift(job);
+              addMsg("assistant", res.reply || "Job queued.");
+              renderStatus();
+              pollJob(job.id);
+            } else {
+              addMsg("assistant", res.reply || "The request could not be queued.");
+            }
+          } catch {
+            hideTyping();
+            state.apiOnline = false; updateConnStatus();
+            addMsg("assistant", "API unreachable — switching to browser demo mode.");
+            localDemo(message);
           }
-        } catch (error) {
-          state.apiOnline = false;
-          updateApiStatus();
-          replaceLastAssistant("The local API is unavailable, so I am switching to the in-browser demo path. Start the API to run real Yosys jobs and view artifacts.");
-          queueLocalDemo(message);
         } finally {
           sendButton.disabled = false;
         }
         return;
       }
 
-      queueLocalDemo(message);
+      localDemo(message);
       sendButton.disabled = false;
-    });
+    }
 
-    async function checkApiHealth() {
+    // ── Streaming ─────────────────────────────────────────────
+    async function streamFromApi(message) {
+      state.streaming = true;
+      showTyping();
+
+      let msgEl = null;
+      let streamed = "";
+      let renderTid = null;
+      let chipEl = null;
+
+      const flush = () => {
+        if (renderTid) return;
+        renderTid = setTimeout(() => {
+          renderTid = null;
+          if (!msgEl) return;
+          const b = msgEl.querySelector(".msg-bubble");
+          if (b) b.innerHTML = md(streamed);
+          chatLog.scrollTop = chatLog.scrollHeight;
+        }, 55);
+      };
+
       try {
-        const response = await fetch(`${API_BASE_URL}/api/health`, { method: "GET" });
-        state.apiOnline = response.ok;
-        if (response.ok) {
-          const body = await response.json();
-          state.plannerMode = body.plannerMode || "api";
+        const resp = await fetch(`${API_BASE_URL}/api/chat/stream`, {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-session-id": sessionId() },
+          body: JSON.stringify({ message }),
+        });
+        if (!resp.ok || !resp.body) throw new Error(`${resp.status}`);
+
+        hideTyping();
+        msgEl = createAssistantEl();
+
+        const reader = resp.body.getReader();
+        const dec = new TextDecoder();
+        let buf = "";
+
+        outer: while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += dec.decode(value, { stream: true });
+          const lines = buf.split("\n");
+          buf = lines.pop() ?? "";
+
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            let ev;
+            try { ev = JSON.parse(line.slice(6)); } catch { continue; }
+
+            if (ev.type === "token") {
+              streamed += ev.text;
+              flush();
+            } else if (ev.type === "job") {
+              const job = apiJobToLocal(ev.job, message, null);
+              state.jobs.unshift(job);
+              state.currentJobId = job.id;
+              renderStatus();
+              pollJob(ev.job.id);
+              chipEl = makeJobChip(job.id, job.status, job.type);
+            } else if (ev.type === "done" || ev.type === "error") {
+              break outer;
+            }
+          }
         }
-      } catch {
-        state.apiOnline = false;
+
+        if (renderTid) { clearTimeout(renderTid); renderTid = null; }
+        if (msgEl) {
+          const b = msgEl.querySelector(".msg-bubble");
+          if (b) { b.classList.remove("stream-cursor"); b.innerHTML = md(streamed || "*(no response)*"); }
+          if (chipEl) b.appendChild(chipEl);
+          chatLog.scrollTop = chatLog.scrollHeight;
+        }
+        state.messages.push({ role: "assistant", text: streamed });
+
+      } finally {
+        if (renderTid) clearTimeout(renderTid);
+        state.streaming = false;
+        sendButton.disabled = false;
+        hideTyping();
       }
-      updateApiStatus();
     }
 
-    function updateApiStatus() {
-      apiStatus.textContent = state.apiOnline
-        ? `Connected to ${API_BASE_URL}. Planner: ${state.plannerMode}.`
-        : `API offline. Browser demo fallback planner is active.`;
+    function createAssistantEl() {
+      removeEmpty();
+      const art = document.createElement("article");
+      art.className = "message assistant";
+      art.innerHTML = `
+        <div class="msg-avatar">EC</div>
+        <div class="msg-bubble stream-cursor"></div>`;
+      chatLog.appendChild(art);
+      chatLog.scrollTop = chatLog.scrollHeight;
+      return art;
     }
 
+    function makeJobChip(jobId, status, type) {
+      const div = document.createElement("div");
+      div.className = "job-chip";
+      div.dataset.jobId = jobId;
+      div.dataset.status = status;
+      div.innerHTML =
+        `<span class="dot"></span>` +
+        `<span class="job-chip-label">${escHtml(labelAction(type))}</span>` +
+        `<span class="job-chip-id">#${escHtml(jobId.slice(0,8))}</span>`;
+      return div;
+    }
+
+    // ── Typing indicator ──────────────────────────────────────
+    let _typingEl = null;
+    function showTyping() {
+      if (_typingEl) return;
+      removeEmpty();
+      const wrap = document.createElement("div");
+      wrap.style.display = "flex"; wrap.style.gap = "11px"; wrap.style.alignItems = "flex-start";
+      const av = document.createElement("div");
+      av.className = "msg-avatar"; av.textContent = "EC";
+      _typingEl = document.createElement("div");
+      _typingEl.className = "typing-indicator";
+      _typingEl.innerHTML = "<span></span><span></span><span></span>";
+      wrap.appendChild(av); wrap.appendChild(_typingEl);
+      chatLog.appendChild(wrap);
+      _typingEl._wrap = wrap;
+      chatLog.scrollTop = chatLog.scrollHeight;
+    }
+    function hideTyping() {
+      if (_typingEl) { (_typingEl._wrap || _typingEl).remove(); _typingEl = null; }
+    }
+
+    // ── Regular API fallback ──────────────────────────────────
     async function sendToApi(message) {
-      const response = await fetch(`${API_BASE_URL}/api/chat`, {
+      const r = await fetch(`${API_BASE_URL}/api/chat`, {
         method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-session-id": getSessionId()
-        },
-        body: JSON.stringify({ message })
+        headers: { "content-type": "application/json", "x-session-id": sessionId() },
+        body: JSON.stringify({ message }),
       });
-      const body = await response.json();
-      if (!response.ok && !body.reply) {
-        throw new Error(body.error?.message || "API request failed.");
-      }
+      const body = await r.json();
+      if (!r.ok && !body.reply) throw new Error(body.error?.message || "API error");
       return body;
     }
 
-    async function pollApiJob(jobId) {
+    // ── Job polling ───────────────────────────────────────────
+    async function pollJob(jobId) {
       const existing = state.polling.get(jobId);
-      if (existing?.timeoutId) {
-        window.clearTimeout(existing.timeoutId);
-      }
+      if (existing?.tid) clearTimeout(existing.tid);
+      const ps = { tid: null, fails: 0 };
+      state.polling.set(jobId, ps);
 
-      const pollState = { timeoutId: null, failures: 0 };
-      state.polling.set(jobId, pollState);
-
-      const pollOnce = async () => {
+      const tick = async () => {
         try {
-          const response = await fetch(`${API_BASE_URL}/api/jobs/${jobId}`);
-          if (!response.ok) throw new Error("Job polling failed.");
-          const body = await response.json();
-          const updated = normalizeApiJob(body.job);
-          pollState.failures = 0;
+          const r = await fetch(`${API_BASE_URL}/api/jobs/${jobId}`);
+          if (!r.ok) throw new Error("poll");
+          const { job: aj } = await r.json();
+          const updated = apiJobToLocal(aj);
+          ps.fails = 0;
           mergeJob(updated);
-          renderPanels();
+          renderStatus();
+          updateChips(jobId, updated.status);
 
-          if (updated.status === "completed" || updated.status === "failed" || updated.status === "cancelled") {
+          if (["completed","failed","cancelled"].includes(updated.status)) {
             state.polling.delete(jobId);
-            await loadApiArtifacts(jobId);
-            addMessage("assistant", updated.summary || `${labelAction(updated.type)} finished with status ${updated.status}.`);
+            await loadArtifacts(jobId);
+            addMsg("assistant", updated.summary || `**${labelAction(updated.type)}** — \`${updated.status}\`.`);
+            if (updated.status === "completed") switchTab("artifacts");
             return;
           }
-
-          pollState.timeoutId = window.setTimeout(pollOnce, 2500);
-        } catch (error) {
-          pollState.failures += 1;
-          const job = state.jobs.find((item) => item.id === jobId);
-          if (job) {
-            job.summary = `Still waiting for Cloud Run. Poll retry ${pollState.failures}/8.`;
-            renderPanels();
-          }
-
-          if (pollState.failures >= 8) {
+          ps.tid = setTimeout(tick, 2500);
+        } catch {
+          ps.fails++;
+          const job = state.jobs.find(j => j.id === jobId);
+          if (job) { job.summary = `Waiting… retry ${ps.fails}/8`; renderStatus(); }
+          if (ps.fails >= 8) {
             state.polling.delete(jobId);
-            addMessage("assistant", `I lost the live status stream for job ${jobId}. The job may still be running; refresh the page or query the job ID again.`);
+            addMsg("assistant", `Lost status stream for job \`${jobId.slice(0,8)}\`. It may still be running.`);
             return;
           }
-
-          pollState.timeoutId = window.setTimeout(pollOnce, 3500);
+          ps.tid = setTimeout(tick, 3500);
         }
       };
-
-      pollState.timeoutId = window.setTimeout(pollOnce, 1200);
+      ps.tid = setTimeout(tick, 1200);
     }
 
-    async function loadApiArtifacts(jobId) {
-      const response = await fetch(`${API_BASE_URL}/api/jobs/${jobId}/artifacts`);
-      if (!response.ok) return;
-      const body = await response.json();
-      const job = state.jobs.find((item) => item.id === jobId);
+    function updateChips(jobId, status) {
+      document.querySelectorAll(".job-chip").forEach((el) => {
+        if (el.dataset.jobId === jobId) el.dataset.status = status;
+      });
+    }
+
+    async function loadArtifacts(jobId) {
+      const r = await fetch(`${API_BASE_URL}/api/jobs/${jobId}/artifacts`);
+      if (!r.ok) return;
+      const body = await r.json();
+      const job = state.jobs.find(j => j.id === jobId);
       if (!job) return;
       job.artifacts = Array.isArray(body.artifacts) ? body.artifacts : [];
-      renderPanels();
+      renderArtifacts();
     }
 
-    async function loadArtifactContent(jobId, artifactPath) {
-      const job = state.jobs.find((item) => item.id === jobId);
-      if (!job) return;
-
+    async function loadArtifactContent(jobId, path) {
       if (!state.apiOnline) {
-        state.selectedArtifact = {
-          path: artifactPath,
-          content: "Artifact content is only available when the API is running."
-        };
-        renderPanels();
-        return;
+        state.selectedArtifact = { path, content: "Artifact content requires the API." };
+        renderArtifacts(); return;
       }
-
-      state.selectedArtifact = {
-        path: artifactPath,
-        content: "Loading artifact..."
-      };
-      renderPanels();
-
+      state.selectedArtifact = { path, content: "Loading…" };
+      renderArtifacts();
       try {
-        const relativePath = artifactPath.startsWith(`jobs/${jobId}/`)
-          ? artifactPath.slice(`jobs/${jobId}/`.length)
-          : artifactPath;
-        const response = await fetch(`${API_BASE_URL}/api/jobs/${jobId}/artifacts/${encodeURIComponent(relativePath)}`);
-        const body = await response.json();
-        if (!response.ok) {
-          throw new Error(body.error?.message || "Artifact request failed.");
-        }
-        state.selectedArtifact = {
-          path: body.path,
-          content: body.content
-        };
-      } catch (error) {
-        state.selectedArtifact = {
-          path: artifactPath,
-          content: error instanceof Error ? error.message : "Artifact could not be loaded."
-        };
+        const rel = path.startsWith(`jobs/${jobId}/`) ? path.slice(`jobs/${jobId}/`.length) : path;
+        const r = await fetch(`${API_BASE_URL}/api/jobs/${jobId}/artifacts/${encodeURIComponent(rel)}`);
+        const body = await r.json();
+        if (!r.ok) throw new Error(body.error?.message || "artifact error");
+        state.selectedArtifact = { path: body.path, content: body.content };
+      } catch (e) {
+        state.selectedArtifact = { path, content: e instanceof Error ? e.message : "Load failed." };
       }
-      renderPanels();
+      renderArtifacts();
     }
 
-    function queueLocalDemo(message) {
-      window.setTimeout(() => {
-        const decision = classify(message);
-        if (decision.action === "unsupported") {
-          replaceLastAssistant("I can help with synthesis, simulation, real OpenLane flows, and report summaries. This request was not queued.");
+    // ── Local browser demo ────────────────────────────────────
+    function localDemo(message) {
+      showTyping();
+      setTimeout(() => {
+        hideTyping();
+        const d = classify(message);
+        if (d.action === "unsupported") {
+          addMsg("assistant", "I can help with **synthesis**, **simulation**, **OpenLane flows**, and **report summaries**. Try describing a specific EDA task.");
           return;
         }
-
-        const job = createJob(decision.action, message, decision.reason);
-        replaceLastAssistant(`Queued ${labelAction(job.type)}. Job ${job.id} is now queued.`);
-        renderPanels();
+        const job = makeLocalJob(d.action, message, d.reason);
+        state.currentJobId = job.id;
+        addMsg("assistant", `Queued **${labelAction(job.type)}**. Job \`${job.id}\` is now \`queued\`.`);
+        renderStatus();
         simulateJob(job.id);
-      }, 550);
+      }, 600);
     }
 
     function classify(message) {
-      const normalized = message.toLowerCase();
-      if (normalized.includes("openlane") || normalized.includes("gds") || normalized.includes("rtl-to-gds")) {
-        return { action: "run_openlane_flow", reason: "OpenLane flow selected." };
-      }
-      if (normalized.includes("simulate") || normalized.includes("testbench") || normalized.includes("vcd")) {
-        return { action: "simulate_verilog", reason: "Simulation workflow selected." };
-      }
-      if (normalized.includes("report") || normalized.includes("timing") || normalized.includes("summary")) {
-        return { action: "summarize_report", reason: "Report summarization selected." };
-      }
-      if (normalized.includes("synthesize") || normalized.includes("yosys") || normalized.includes("verilog") || normalized.includes("counter")) {
-        return { action: "synthesize_verilog", reason: "Synthesis workflow selected." };
-      }
-      return { action: "unsupported", reason: "No allowlisted action matched." };
+      const n = message.toLowerCase();
+      if (n.includes("openlane")||n.includes("gds")||n.includes("rtl-to-gds")||n.includes("asic")||n.includes("physical design"))
+        return { action:"run_openlane_flow", reason:"OpenLane flow matched." };
+      if (n.includes("simulate")||n.includes("testbench")||n.includes("vcd"))
+        return { action:"simulate_verilog", reason:"Simulation matched." };
+      if (n.includes("report")||n.includes("timing")||n.includes("summary"))
+        return { action:"summarize_report", reason:"Report summarization matched." };
+      if (n.includes("synthesize")||n.includes("yosys")||n.includes("verilog")||n.includes("counter")||n.includes("module"))
+        return { action:"synthesize_verilog", reason:"Synthesis matched." };
+      return { action:"unsupported", reason:"No allowlisted action matched." };
     }
 
-    function createJob(type, inputText, reason) {
-      const job = {
-        id: crypto.randomUUID ? crypto.randomUUID().slice(0, 8) : Math.random().toString(36).slice(2, 10),
-        type,
-        inputText,
-        reason,
-        source: "browser_demo",
-        status: "queued",
-        createdAt: new Date(),
-        startedAt: null,
-        finishedAt: null,
-        artifacts: []
-      };
+    function makeLocalJob(type, inputText, reason) {
+      const id = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2)).slice(0,8);
+      const job = { id, type, inputText, reason, source:"browser_demo", status:"queued",
+        createdAt:new Date(), startedAt:null, finishedAt:null, artifacts:[], summary:"" };
       state.jobs.unshift(job);
       return job;
     }
 
-    function normalizeApiJob(apiJob, inputText = "", plannerDecision = null) {
+    function apiJobToLocal(aj, inputText="", pd=null) {
       return {
-        id: apiJob.id,
-        type: apiJob.type,
-        inputText: inputText || apiJob.inputPreview || "",
-        reason: plannerDecision?.reason || apiJob.plannerDecision?.reason || "API planner decision.",
-        source: "api",
-        status: apiJob.status,
-        createdAt: new Date(apiJob.createdAt),
-        startedAt: apiJob.startedAt ? new Date(apiJob.startedAt) : null,
-        finishedAt: apiJob.finishedAt ? new Date(apiJob.finishedAt) : null,
-        artifacts: Array.isArray(apiJob.artifactPaths) ? apiJob.artifactPaths : [],
-        summary: apiJob.summary || ""
+        id: aj.id, type: aj.type,
+        inputText: inputText || aj.inputPreview || "",
+        reason: pd?.reason || aj.plannerDecision?.reason || "API planner.",
+        source:"api", status: aj.status,
+        createdAt: new Date(aj.createdAt),
+        startedAt: aj.startedAt ? new Date(aj.startedAt) : null,
+        finishedAt: aj.finishedAt ? new Date(aj.finishedAt) : null,
+        artifacts: Array.isArray(aj.artifactPaths) ? aj.artifactPaths : [],
+        summary: aj.summary || "",
       };
     }
 
     function mergeJob(updated) {
-      const index = state.jobs.findIndex((job) => job.id === updated.id);
-      if (index === -1) {
-        state.jobs.unshift(updated);
-        return;
-      }
-      state.jobs[index] = { ...state.jobs[index], ...updated };
-      if (index === 0) {
-        state.selectedArtifact = null;
-      }
+      const i = state.jobs.findIndex(j => j.id === updated.id);
+      if (i === -1) { state.jobs.unshift(updated); return; }
+      state.jobs[i] = { ...state.jobs[i], ...updated };
     }
 
     function simulateJob(jobId) {
-      window.setTimeout(() => {
-        const job = state.jobs.find((item) => item.id === jobId);
+      setTimeout(() => {
+        const job = state.jobs.find(j => j.id === jobId);
         if (!job) return;
-        job.status = "running";
-        job.startedAt = new Date();
-        addMessage("assistant", `${labelAction(job.type)} is running. Status polling is active.`);
-        renderPanels();
-      }, 900);
-
-      window.setTimeout(() => {
-        const job = state.jobs.find((item) => item.id === jobId);
+        job.status = "running"; job.startedAt = new Date(); renderStatus();
+      }, 700);
+      setTimeout(() => {
+        const job = state.jobs.find(j => j.id === jobId);
         if (!job) return;
-        job.status = "completed";
-        job.finishedAt = new Date();
-        job.summary = summaryFor(job.type);
-        job.artifacts = [];
-        addMessage("assistant", job.summary);
-        renderPanels();
-      }, 2600);
+        job.status = "completed"; job.finishedAt = new Date();
+        job.summary = demoSummary(job.type);
+        updateChips(jobId, "completed");
+        addMsg("assistant", job.summary);
+        renderStatus();
+      }, 2800);
     }
 
-    function summaryFor(type) {
-      const summaries = {
-        synthesize_verilog: "Browser-only demo completed. Start the local API to run real Yosys synthesis and view design.v, yosys.log, synth_output.v, and result.json.",
-        simulate_verilog: "Simulation completed in demo mode. The production worker will run Icarus Verilog and preserve stdout, stderr, and VCD files.",
-        summarize_report: "Report summary completed in demo mode. The production flow will extract timing, area, power, warnings, and next actions.",
-        run_openlane_flow: "OpenLane flow queued. Start the API to run the real cloud toolchain and inspect generated artifacts."
-      };
-      return summaries[type];
+    function demoSummary(type) {
+      return {
+        synthesize_verilog: "**Browser demo completed.** Start the local API to run real Yosys synthesis and view `design.v`, `yosys.log`, `synth_output.v`, and `result.json`.",
+        simulate_verilog:   "**Simulation completed** *(demo mode)*. The production worker runs Icarus Verilog and captures stdout, stderr, and VCD waveforms.",
+        summarize_report:   "**Report summary completed** *(demo mode)*. The production flow extracts timing slack, area, power, and DRC warnings.",
+        run_openlane_flow:  "**OpenLane flow queued** *(demo mode)*. Start the API to run the real toolchain — artifacts include GDS layout, DEF, gate-level netlist, and signoff reports.",
+      }[type] ?? `Job \`${type}\` completed.`;
     }
 
-    function labelAction(type) {
-      return type.replaceAll("_", " ");
+    // ── Artifact overlay ──────────────────────────────────────
+    const mainEl = document.querySelector(".main");
+
+    async function openArtifactOverlay(jobId, path) {
+      const name = path.split("/").pop();
+      document.getElementById("overlayTitle").textContent = name;
+      document.getElementById("overlayBody").innerHTML = `<span class="overlay-loading">Loading…</span>`;
+      mainEl.classList.add("overlay-open");
+
+      try {
+        const rel = path.startsWith(`jobs/${jobId}/`) ? path.slice(`jobs/${jobId}/`.length) : path;
+        const r = await fetch(`${API_BASE_URL}/api/jobs/${jobId}/artifacts/${encodeURIComponent(rel)}`);
+        const body = await r.json();
+        if (!r.ok) throw new Error(body.error?.message || "artifact error");
+
+        const overlayBody = document.getElementById("overlayBody");
+        const ext = (name.split(".").pop() || "").toLowerCase();
+        const binaryExts = ["gds", "def"];
+        if (body.encoding === "base64") {
+          overlayBody.innerHTML = `<img class="overlay-image" src="data:image/png;base64,${body.content}" alt="${escHtml(name)}">`;
+        } else if (binaryExts.includes(ext)) {
+          overlayBody.innerHTML = `<span class="overlay-loading">Binary file — open the PNG preview to view the layout.</span>`;
+        } else {
+          const lang = langForExt(ext);
+          const isHL = typeof hljs !== "undefined" && hljs.getLanguage(lang);
+          const highlighted = isHL
+            ? hljs.highlight(body.content, { language: lang }).value
+            : escHtml(body.content);
+          overlayBody.innerHTML = `
+            <div class="overlay-code-block">
+              <pre><code class="hljs language-${escHtml(lang)}">${highlighted}</code></pre>
+            </div>`;
+        }
+      } catch (e) {
+        document.getElementById("overlayBody").innerHTML =
+          `<span class="overlay-loading">${escHtml(e instanceof Error ? e.message : "Load failed.")}</span>`;
+      }
     }
 
-    function getSessionId() {
-      const key = "eda-copilot-session-id";
-      const existing = window.localStorage.getItem(key);
-      if (existing) return existing;
-      const sessionId = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2);
-      window.localStorage.setItem(key, sessionId);
-      return sessionId;
+    function closeArtifactOverlay() {
+      mainEl.classList.remove("overlay-open");
     }
 
-    function escapeHtml(value) {
-      return String(value)
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
+    document.getElementById("overlayCloseBtn").addEventListener("click", closeArtifactOverlay);
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && mainEl.classList.contains("overlay-open")) closeArtifactOverlay();
+    });
+
+    // ── Render: Status tab ────────────────────────────────────
+    function renderStatus() {
+      const job = state.currentJobId
+        ? state.jobs.find(j => j.id === state.currentJobId)
+        : state.jobs[0];
+      if (!job) return;
+
+      const active = job.status === "running" || job.status === "queued";
+      const done   = job.status === "completed" || job.status === "failed";
+
+      let html = `<div class="job-meta">
+        <div class="job-row">
+          <span class="job-row-label">Status</span>
+          <span class="job-row-value">
+            <span class="status-badge ${escHtml(job.status)}">${escHtml(job.status)}</span>
+          </span>
+        </div>
+        <div class="job-row">
+          <span class="job-row-label">Job ID</span>
+          <span class="job-row-value" style="font-family:monospace">${escHtml(job.id.slice(0,8))}</span>
+        </div>
+        <div class="job-row">
+          <span class="job-row-label">Type</span>
+          <span class="job-row-value">${escHtml(labelAction(job.type))}</span>
+        </div>
+        <div class="job-row">
+          <span class="job-row-label">Source</span>
+          <span class="job-row-value">${escHtml(job.source)}</span>
+        </div>
+        <div class="job-row">
+          <span class="job-row-label">Created</span>
+          <span class="job-row-value">${job.createdAt.toLocaleTimeString()}</span>
+        </div>
+        ${job.startedAt ? `<div class="job-row">
+          <span class="job-row-label">Started</span>
+          <span class="job-row-value">${job.startedAt.toLocaleTimeString()}</span>
+        </div>` : ""}
+        ${job.finishedAt ? `<div class="job-row">
+          <span class="job-row-label">Finished</span>
+          <span class="job-row-value">${job.finishedAt.toLocaleTimeString()}</span>
+        </div>` : ""}
+      </div>`;
+
+      if (active) html += `<div class="progress-bar"><div class="progress-fill"></div></div>`;
+
+      if (job.summary) {
+        html += `<div style="margin-top:14px"><div class="result-body">${md(job.summary)}</div></div>`;
+      } else if (!done) {
+        html += `<p style="margin-top:14px;font-size:13px;color:var(--ink-2)">
+          Waiting for job completion${job.type === "run_openlane_flow" ? " — OpenLane runs take 60–90 seconds" : ""}.</p>`;
+      }
+
+      statusInner.innerHTML = html;
     }
 
-    function addMessage(role, text) {
-      const empty = chatLog.querySelector(".empty");
-      if (empty) empty.remove();
+    // ── Render: Artifacts tab ─────────────────────────────────
+    function renderArtifacts() {
+      const job = state.currentJobId
+        ? state.jobs.find(j => j.id === state.currentJobId)
+        : state.jobs[0];
 
-      const message = document.createElement("article");
-      message.className = `message ${role}`;
-      message.textContent = text;
-      chatLog.appendChild(message);
+      if (!job || !job.artifacts.length) {
+        artifactsInner.innerHTML = job && job.source === "api"
+          ? `<p class="artifact-empty">No artifacts yet — job is <strong>${escHtml(job.status)}</strong>.</p>`
+          : `<p class="artifact-empty">Artifacts appear here once a job completes.<br><br>In browser demo mode, start the API to get real artifacts.</p>`;
+        return;
+      }
+
+      const listHtml = job.artifacts.map((a) => {
+        const name = a.split("/").pop();
+        const ext  = (name.split(".").pop() || "").toLowerCase();
+        const icon = fileIcon(ext);
+        const sel  = state.selectedArtifact?.path === a ? " selected" : "";
+        return `<button class="artifact-btn${sel}" data-artifact="${escHtml(a)}" data-jobid="${escHtml(job.id)}">
+          <span class="artifact-icon">${icon}</span>
+          <span class="artifact-name">${escHtml(name)}</span>
+          <span class="artifact-ext">.${escHtml(ext)}</span>
+        </button>`;
+      }).join("");
+
+      let viewerHtml = "";
+      if (state.selectedArtifact) {
+        const name = state.selectedArtifact.path.split("/").pop();
+        const ext  = (name.split(".").pop() || "").toLowerCase();
+        const lang = langForExt(ext);
+        const content = state.selectedArtifact.content;
+        const isHighlightable = typeof hljs !== "undefined" && hljs.getLanguage(lang);
+        const body = isHighlightable
+          ? `<pre><code class="hljs language-${escHtml(lang)}">${hljs.highlight(content, { language: lang }).value}</code></pre>`
+          : `<div class="artifact-raw">${escHtml(content)}</div>`;
+        viewerHtml = `
+          <div class="artifact-viewer" style="margin-top:12px">
+            <div class="artifact-viewer-header">
+              <span class="artifact-viewer-name">${escHtml(name)}</span>
+              <span class="artifact-viewer-lang">${escHtml(lang)}</span>
+            </div>
+            <div class="artifact-viewer-body">${body}</div>
+          </div>`;
+      }
+
+      artifactsInner.innerHTML = `<div class="artifact-list">${listHtml}</div>${viewerHtml}`;
+      artifactsInner.querySelectorAll("[data-artifact]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          openArtifactOverlay(btn.dataset.jobid, btn.dataset.artifact);
+        });
+      });
+    }
+
+    // ── Messages ──────────────────────────────────────────────
+    function addMsg(role, text) {
+      removeEmpty();
+      const art = document.createElement("article");
+      art.className = `message ${role}`;
+
+      if (role === "user") {
+        art.innerHTML = `<div class="msg-bubble">${escHtml(text)}</div>`;
+      } else {
+        art.innerHTML = `
+          <div class="msg-avatar">EC</div>
+          <div class="msg-bubble">${md(text)}</div>`;
+      }
+
+      chatLog.appendChild(art);
       chatLog.scrollTop = chatLog.scrollHeight;
       state.messages.push({ role, text });
     }
 
-    function replaceLastAssistant(text) {
-      const messages = [...chatLog.querySelectorAll(".message.assistant")];
-      const last = messages[messages.length - 1];
-      if (last) {
-        last.textContent = text;
-      } else {
-        addMessage("assistant", text);
-      }
+    function removeEmpty() {
+      const el = document.getElementById("emptyState") || chatLog.querySelector(".empty-state");
+      if (el) el.remove();
     }
 
-    function renderPanels() {
-      if (state.jobs.length === 0) return;
-      const [current] = state.jobs;
+    // ── Utilities ─────────────────────────────────────────────
+    function labelAction(type) { return (type || "").replaceAll("_", " "); }
 
-      jobPanel.innerHTML = `
-        <div class="job-row"><span>Status</span><span class="badge ${escapeHtml(current.status)}">${escapeHtml(current.status)}</span></div>
-        <div class="job-row"><span>Job ID</span><strong>${escapeHtml(current.id)}</strong></div>
-        <div class="job-row"><span>Type</span><strong>${escapeHtml(labelAction(current.type))}</strong></div>
-        <div class="job-row"><span>Created</span><span>${current.createdAt.toLocaleTimeString()}</span></div>
-        <div class="job-row"><span>Planner</span><span>${escapeHtml(current.reason)}</span></div>
-      `;
-
-      resultsPanel.innerHTML = current.status === "completed" || current.status === "failed"
-        ? `<p>${escapeHtml(current.summary || `${labelAction(current.type)} finished with status ${current.status}.`)}</p>`
-        : `<p class="muted">${escapeHtml(current.summary || "Waiting for job completion. OpenLane runs can take 60-90 seconds.")}</p>`;
-
-      artifactPanel.innerHTML = current.artifacts.length
-        ? current.artifacts.map((artifact) => `<button class="artifact" type="button" data-artifact="${escapeHtml(artifact)}"><span>${escapeHtml(artifact)}</span><span>view</span></button>`).join("")
-        : `<p class="muted">${current.source === "api" ? `Artifact unavailable while job is ${escapeHtml(current.status)}.` : "No real artifacts in browser-only fallback. Start the API, then submit the prompt again."}</p>`;
-
-      artifactPanel.querySelectorAll("[data-artifact]").forEach((button) => {
-        button.addEventListener("click", () => {
-          loadArtifactContent(current.id, button.getAttribute("data-artifact"));
-        });
-      });
-
-      if (state.selectedArtifact) {
-        artifactPanel.insertAdjacentHTML("beforeend", `
-          <div class="artifact-viewer">
-            <div class="artifact-title">${escapeHtml(state.selectedArtifact.path)}</div>
-            <pre class="artifact-content">${escapeHtml(state.selectedArtifact.content)}</pre>
-          </div>
-        `);
+    function sessionId() {
+      const k = "eda-copilot-sid";
+      let id = localStorage.getItem(k);
+      if (!id) {
+        id = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2);
+        localStorage.setItem(k, id);
       }
+      return id;
+    }
+
+    function escHtml(v) {
+      return String(v)
+        .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
+        .replaceAll('"',"&quot;").replaceAll("'","&#039;");
+    }
+
+    function fileIcon(ext) {
+      const icons = { v:"⬡", sv:"⬡", gds:"◈", def:"◫", json:"{ }", log:"≡", rpt:"≡", txt:"≡", js:"JS", tcl:"⌨", png:"▣" };
+      return icons[ext] || "◻";
+    }
+
+    function langForExt(ext) {
+      return { v:"verilog", sv:"verilog", js:"javascript", json:"json", tcl:"tcl",
+               txt:"plaintext", log:"plaintext", rpt:"plaintext", def:"plaintext" }[ext] || "plaintext";
     }
   </script>
 </body>
