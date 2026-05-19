@@ -768,11 +768,11 @@ async function collectOpenLaneArtifacts(
   if (gdsArtifact) {
     const gdsRelative = gdsArtifact.slice(`jobs/${jobId}/`.length);
     const gdsDiskPath = join(jobStorageRoot, jobId, gdsRelative);
-    const pngName = basename(gdsRelative, ".gds") + "_preview.png";
-    const pngDiskPath = join(artifactsDir, pngName);
-    const ok = await generateGdsPreview(gdsDiskPath, pngDiskPath);
+    const svgName = basename(gdsRelative, ".gds") + "_preview.svg";
+    const svgDiskPath = join(artifactsDir, svgName);
+    const ok = await generateGdsSvg(gdsDiskPath, svgDiskPath);
     if (ok) {
-      collected.unshift(`jobs/${jobId}/artifacts/${pngName}`);
+      collected.unshift(`jobs/${jobId}/artifacts/${svgName}`);
     }
   }
 
@@ -932,27 +932,22 @@ function extractOpenAIText(body: any): string {
   return "";
 }
 
-async function generateGdsPreview(gdsPath: string, pngPath: string): Promise<boolean> {
+async function generateGdsSvg(gdsPath: string, svgPath: string): Promise<boolean> {
   try {
-    const rubyScript = [
-      "view = RBA::LayoutView.new",
-      "view.load_layout($input, 0)",
-      "view.max_hier",
-      "view.zoom_fit",
-      "view.save_image($output, 1200, 900)",
-      "view._destroy",
+    const pyScript = [
+      "import sys, gdstk",
+      "lib = gdstk.read_gds(sys.argv[1])",
+      "tops = lib.top_level()",
+      "if not tops: sys.exit(1)",
+      "tops[0].write_svg(sys.argv[2], scaling=1, background='#ffffff')",
     ].join("\n");
 
-    const scriptPath = gdsPath + ".export.rb";
-    await fs.writeFile(scriptPath, rubyScript, "utf8");
-
-    await execFileAsync("klayout", ["-z", "-rd", `input=${gdsPath}`, "-rd", `output=${pngPath}`, "-r", scriptPath], {
-      env: { ...process.env, QT_QPA_PLATFORM: "offscreen" },
+    await execFileAsync("python3", ["-c", pyScript, gdsPath, svgPath], {
       timeout: 60_000,
+      killSignal: "SIGKILL" as NodeJS.Signals,
     });
 
-    await fs.unlink(scriptPath).catch(() => {});
-    const stat = await fs.stat(pngPath);
+    const stat = await fs.stat(svgPath);
     return stat.size > 0;
   } catch {
     return false;

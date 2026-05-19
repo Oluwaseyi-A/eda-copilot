@@ -19,8 +19,10 @@ ENV PORT=8080
 ENV PATH="/root/.nix-profile/bin:/nix/var/nix/profiles/default/bin:/nix/var/nix/profiles/default/sbin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends ca-certificates yosys iverilog \
+  && apt-get install -y --no-install-recommends ca-certificates yosys iverilog python3 python3-pip \
   && rm -rf /var/lib/apt/lists/*
+
+RUN pip3 install gdstk --no-cache-dir --break-system-packages
 
 COPY --from=openlane /nix /nix
 COPY --from=openlane /root/.nix-profile /root/.nix-profile

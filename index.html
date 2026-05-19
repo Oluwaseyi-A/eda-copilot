@@ -1232,8 +1232,14 @@
         const binaryExts = ["gds", "def"];
         if (body.encoding === "base64") {
           overlayBody.innerHTML = `<img class="overlay-image" src="data:image/png;base64,${body.content}" alt="${escHtml(name)}">`;
+        } else if (ext === "svg") {
+          overlayBody.innerHTML = "";
+          const svgWrapper = document.createElement("div");
+          svgWrapper.style.cssText = "background:#fff;border-radius:8px;border:1px solid var(--border);overflow:auto;max-width:100%;padding:16px;";
+          svgWrapper.innerHTML = body.content;
+          overlayBody.appendChild(svgWrapper);
         } else if (binaryExts.includes(ext)) {
-          overlayBody.innerHTML = `<span class="overlay-loading">Binary file — open the PNG preview to view the layout.</span>`;
+          overlayBody.innerHTML = `<span class="overlay-loading">Binary file — open the SVG preview to view the layout.</span>`;
         } else {
           const lang = langForExt(ext);
           const isHL = typeof hljs !== "undefined" && hljs.getLanguage(lang);
@@ -1412,7 +1418,7 @@
     }
 
     function fileIcon(ext) {
-      const icons = { v:"⬡", sv:"⬡", gds:"◈", def:"◫", json:"{ }", log:"≡", rpt:"≡", txt:"≡", js:"JS", tcl:"⌨", png:"▣" };
+      const icons = { v:"⬡", sv:"⬡", gds:"◈", def:"◫", json:"{ }", log:"≡", rpt:"≡", txt:"≡", js:"JS", tcl:"⌨", png:"▣", svg:"◈" };
       return icons[ext] || "◻";
     }
 
